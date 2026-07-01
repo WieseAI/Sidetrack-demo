@@ -122,3 +122,75 @@ Each risk has: **what** (one line), **why it matters** (impact), **likelihood**
   kept under `docs/reports/`, README is a landing page, MIT license from
   the first commit. Enforced by Phase 5.
 - **Status:** Open. Tracked by D-12 and Phase 5.
+
+---
+
+## Risks added during Phase 0 (2026-07-01, WieseOS Agent)
+
+### R-09 — Preact ecosystem compatibility for chosen libraries
+
+- **What:** D-13 chose Preact to keep the sidepanel cold-start small;
+  some libraries in the dnd/a11y ecosystem are React-first and rely on
+  React-only APIs.
+- **Why:** A library that hard-imports `react` would silently bring
+  React into the bundle and erase the cold-start win.
+- **Likelihood:** Low for `@dnd-kit/core` (it has a Preact-compatible
+  build), medium for unselected future dependencies.
+- **Mitigation:** Pin `preact/compat` as the JSX runtime, and gate any
+  new dependency on a "weighs less than 10 KB and runs on Preact" check
+  before adoption. Phase 1 adds a CI bundle-size budget so a React-only
+  import is caught at PR time, not at runtime.
+- **Status:** Open. Tracked by Phase 1.
+
+### R-10 — Vite MV3 build output drift
+
+- **What:** Vite's default behaviour is to emit assets using
+  root-relative URLs and inline small assets. MV3 service workers and
+  extension pages must load everything from the extension's own
+  packaged files, and `web_accessible_resources` plus CSP must be set
+  accordingly.
+- **Why:** A silent regression in a Vite major upgrade (or in a plugin
+  like `@crxjs/vite-plugin`) could produce a `dist/` that loads in dev
+  but fails in a clean Chrome profile with a CSP or 404 error.
+- **Likelihood:** Medium (Vite ships breaking changes; we depend on
+  community plugins).
+- **Mitigation:** Pin Vite and the CRX plugin in `package.json`, add
+  a Phase 1 smoke test that runs `vite build` and grep-asserts that
+  `manifest.json` is in `dist/`, the service worker is emitted as
+  `dist/background.js`, and no `<script src="http">` survives. The
+  smoke test is a one-shot node script that exits non-zero on
+  failure.
+- **Status:** Open. Tracked by Phase 1.
+
+### R-11 — `chrome.commands` chords collide with OS or other extension chords
+
+- **What:** `Alt+Shift+S/A/T` are likely free in a clean Chrome profile
+  but are not guaranteed free on a user's machine, where another
+  extension may have claimed the same chord, or where the OS reserves
+  the chord (some Linux WMs do).
+- **Why:** A bound chord that does not fire is a confusing first-run
+  experience.
+- **Likelihood:** Medium.
+- **Mitigation:** The `chrome.commands` API itself surfaces the conflict
+  via `chrome.commands.getAll()`; we read it on first run and surface a
+  "this chord is taken, here's how to rebind" hint in the empty state
+  if any of our chords are unavailable. Documenting the rebind path on
+  `chrome://extensions/shortcuts` in the README is the secondary
+  mitigation.
+- **Status:** Open. Tracked by Phase 5 (where commands are user-visible).
+
+### R-12 — First real-user load surfaces a manifest/CSP regression
+
+- **What:** Phase 0's Definition of Done is "loadable in a clean Chrome
+  profile." That profile is not every user's profile; a real user may
+  have additional extensions, a custom CSP set by corporate IT, or a
+  Chrome flag we did not test.
+- **Why:** The first public release of a sidepanel extension is the one
+  strangers see; a console error on open is a one-star review.
+- **Likelihood:** Medium.
+- **Mitigation:** Phase 5 (or the public release) installs Sidetrack on
+  at least three diverse real profiles (default Chrome, Chrome with
+  1Password, Chrome on a managed/corporate device) and walks through
+  the empty-sidepanel load + open flow with the DevTools console open.
+  Any CSP or service-worker error is filed as a P0 before tagging.
+- **Status:** Open. Tracked by Phase 5.

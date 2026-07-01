@@ -53,19 +53,19 @@ timer-survives-everything strategy with a written test scenario.
 
 ## Acceptance criteria
 
-- [ ] `docs/gsd/01-decisions.md` is updated with the final decision on
+- [x] `docs/gsd/01-decisions.md` is updated with the final decision on
       every open sub-decision in its "What is *not* decided yet" list.
-- [ ] `docs/gsd/02-risks.md` has been reviewed and any new risks
+- [x] `docs/gsd/02-risks.md` has been reviewed and any new risks
       surfaced by this phase's research are added.
-- [ ] `npm install && npm run build` produces a `dist/` that Chrome
+- [x] `npm install && npm run build` produces a `dist/` that Chrome
       accepts as a load-unpacked extension with no warnings about
       manifest fields.
-- [ ] Clicking the toolbar action opens the sidepanel, which shows a
+- [x] Clicking the toolbar action opens the sidepanel, which shows a
       styled empty state with the project name and version.
-- [ ] `docs/reports/phase-0.md` exists and follows the "what was
+- [x] `docs/reports/phase-0.md` exists and follows the "what was
       built / what you researched / what's risky / what's next" template
       from the brief.
-- [ ] The `docs/reports/phase-0/timer-survival-test.md` test scenario
+- [x] The `docs/reports/phase-0/timer-survival-test.md` test scenario
       exists and is referenced from the Phase 2 issue.
 
 ## Dependencies
