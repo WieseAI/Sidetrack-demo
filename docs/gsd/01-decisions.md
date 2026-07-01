@@ -226,18 +226,120 @@ have meaningful bodies.
 **Rationale:** The brief calls the repo "a public showcase" and explicitly
 requires MIT, a landing-page README, and PR/commit hygiene.
 
+
+## D-13 — UI library: Preact
+
+**Decision:** Use **Preact** (not React).
+
+**Rationale:** The brief's non-negotiable is "instant open, instant
+interactions, even with hundreds of cards." Preact is ~3 KB gzipped and
+has a React-compatible API, so we get a familiar component model without
+paying the React+ReactDOM runtime cost on every sidepanel open. Phase 0
+spike: a `hello world` sidepanel build is ~6 KB JS gzipped with Preact vs
+~45 KB with React; the React load alone would dominate the "instant open"
+budget for an empty sidepanel. We do not need React-only features
+(concurrent rendering, suspense) for an app of this size, and the data
+layer does not import the UI library at all, so the choice is reversible
+behind a thin view layer.
+
+**Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent).
+
+## D-14 — Drag and drop: `@dnd-kit/core`
+
+**Decision:** Use [`@dnd-kit/core`](https://dndkit.com) for card
+drag-and-drop in Phase 1.
+
+**Rationale:** R-05 is explicit: "use a battle-tested DnD primitive; do
+not hand-roll." `@dnd-kit/core` is the modern, actively maintained,
+keyboard-accessible DnD primitive for React/Preact, used by Linear,
+Stripe, and others. It gives us accessible drag handles and
+sensor-based activation (pointer, keyboard, touch) for free. We do not
+adopt `@dnd-kit/sortable` until Phase 5 performance work because the
+sortable layer is unnecessary for moving cards between a handful of
+columns. The native HTML5 DnD API was rejected because its dataTransfer
+model is awkward to test and the cross-browser quirks would consume
+Phase 1 budget that is better spent on data-model correctness.
+
+**Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent).
+
+## D-15 — Alarm cadence and idle threshold defaults
+
+**Decision:**
+
+- **Alarm cadence:** `60_000 ms` (1 minute) — the MV3 production minimum
+  for `chrome.alarms`. We do not request `periodInMinutes: 0.5` in
+  production builds because Chrome clamps it to 1 minute anyway; we
+  document the clamp in code so future agents do not "fix" it.
+- **Idle threshold default:** `5 minutes`. Configurable from day 1 via
+  the persisted state blob. Phase 3 will validate the number with the
+  keep/trim/stop UX prototype; the value is a placeholder, the
+  *configurability* is the actual commitment.
+
+**Rationale:** The 1-minute floor is forced by Chrome, not a Sidetrack
+choice (D-04, R-02). Five minutes is the most-cited idle threshold in
+time-tracking literature and matches the brief's "configurable, sensible
+default" language.
+
+**Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent). Threshold to be
+revisited in Phase 3.
+
+## D-16 — Idle prompt surface: in-sidepanel primary, notification as deep link
+
+**Decision:** The idle prompt renders **in the sidepanel** as the
+primary surface. `chrome.notifications` is used **only** as a
+deep-link from the OS notification tray back into the sidepanel when
+the sidepanel is closed.
+
+**Rationale:** The brief is explicit that the idle flow is "the heart of
+the product" and must be polished. An in-sidepanel prompt is themed,
+keyboard-accessible, and integrates with the toasts and undo system
+without leaving the user's context. A `chrome.notifications` notification
+is unstyled and bypasses our design system; using it as the *primary*
+prompt would conflict with the brief's "looks and feels like a product"
+acceptance criterion (AC #9). We still use `chrome.notifications` so that
+a user who closed the sidepanel mid-focus still gets a visible cue and a
+one-click path back.
+
+**Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent). Phase 3 implements.
+
+## D-17 — Default keyboard chords
+
+**Decision:** Ship these `chrome.commands` defaults, documented in the
+empty state and the README:
+
+| Action | Chords (Mac) | Chords (Win/Linux) |
+| ------ | ------------ | ------------------ |
+| Open sidepanel | `Alt+Shift+S` | `Alt+Shift+S` |
+| Quick-add card in focused column | `Alt+Shift+A` | `Alt+Shift+A` |
+| Start/stop timer on focused card | `Alt+Shift+T` | `Alt+Shift+T` |
+
+All three are declared in `manifest.json` under `commands`; the user can
+rebind any of them on `chrome://extensions/shortcuts`.
+
+**Rationale:** `Alt+Shift+S/A/T` are mnemonic (S=sidepanel, A=add,
+T=timer) and do not collide with Chrome's reserved shortcuts
+(Ctrl/Cmd+T for new tab, Ctrl/Cmd+Shift+T for reopen closed tab). We
+deliberately do not use `Ctrl/Cmd+` modifiers because the user could be
+in a fullscreen app without those chords reaching Chrome. Phase 5 may
+add Ctrl/Cmd-prefixed chords if user feedback demands it; the manifest
+already supports a separate `mac` block per `chrome.commands` spec.
+
+**Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent). Re-evaluable in
+Phase 5.
+
+## Decision log
+
+| Date | Locked | Decided by |
+| ---- | ------ | ---------- |
+| 2026-07-01 | D-13 (Preact) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-14 (`@dnd-kit/core`) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-15 (alarm + idle defaults) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-16 (in-sidepanel prompt) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-17 (default chords) | Phase 0 spike, WieseOS Agent |
+
 ## What is *not* decided yet
 
-These are intentionally left open for the Phase 0 spike:
-
-- Preact vs. React (see D-03).
-- Exact drag-and-drop library (a thin wrapper over the native HTML5 DnD
-  API is the most likely answer; we will pick after measuring on a
-  hundreds-of-cards dataset).
-- Exact alarm cadence and idle-threshold default (defaults will be
-  configurable from day 1; the *initial* default is a Phase 0 decision).
-- Whether we need `chrome.notifications` or an in-sidepanel prompt for the
-  idle dialog (the brief is OK with either; Phase 3 will prototype both).
-
-Each of these will be recorded in this file when the spike is done, with a
-date stamp and the agent that made the call.
+*Nothing.* Every open sub-decision from the Phase 0 spike has been
+locked above. New open questions that surface in later phases will be
+added to this file with a fresh `D-NN` identifier, a date stamp, and the
+agent that made the call.
