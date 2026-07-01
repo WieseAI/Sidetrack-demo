@@ -71,7 +71,7 @@ and ship the timer UI in the sidepanel.
 ## Dependencies
 
 - [Phase 1 — Data layer & kanban core](01-phase-1-data-layer-and-kanban.md)
-- The `docs/reports/phase-0/timer-survival-test.md` scenario from Phase 0
+- The [`docs/reports/phase-0/timer-survival-test.md`](../reports/phase-0/timer-survival-test.md) scenario from Phase 0
 
 ## Definition of done
 
