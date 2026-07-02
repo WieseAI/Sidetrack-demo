@@ -178,3 +178,111 @@ describe("delete-board", () => {
 void makeBoardId;
 void makeColumnId;
 void makeCardId;
+
+// ---- Phase 2: timer reducer actions ---------------------------------
+
+describe("start-timer", () => {
+  it("opens a TimeEntry and sets runningTimer on a fresh card", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "T" });
+    const cardId = s.cards[s.cards.length - 1]!.id;
+    const now = NOW + 1_000;
+    s = applyAction(s, { type: "start-timer", cardId, now });
+    expect(s.runningTimer).toEqual({ cardId, startedAt: now, lastSeenActive: now });
+    const card = s.cards.find((c) => c.id === cardId)!;
+    const open = card.entries.find((e) => e.endAt === null);
+    expect(open).toBeDefined();
+    expect(open!.startAt).toBe(now);
+    expect(open!.source).toBe("timer");
+  });
+
+  it("closing the previous timer when starting on a new card (AC #4)", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "B" });
+    const aId = s.cards[s.cards.length - 2]!.id;
+    const bId = s.cards[s.cards.length - 1]!.id;
+    const t0 = NOW;
+    s = applyAction(s, { type: "start-timer", cardId: aId, now: t0 });
+    const t1 = t0 + 30_000;
+    s = applyAction(s, { type: "start-timer", cardId: bId, now: t1 });
+    // A is now closed with endAt = t1.
+    const a = s.cards.find((c) => c.id === aId)!;
+    const aOpen = a.entries.find((e) => e.endAt === null);
+    expect(aOpen).toBeUndefined();
+    const aClosed = a.entries.find((e) => e.endAt === t1);
+    expect(aClosed).toBeDefined();
+    expect(s.runningTimer?.cardId).toBe(bId);
+  });
+
+  it("starting a timer on the already-running card refreshes lastSeenActive", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    const id = s.cards[s.cards.length - 1]!.id;
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW });
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW + 1000 });
+    expect(s.runningTimer).toEqual({ cardId: id, startedAt: NOW, lastSeenActive: NOW + 1000 });
+    // The startedAt anchor is preserved; the open entry isn't double-counted.
+    const card = s.cards.find((c) => c.id === id)!;
+    expect(card.entries.filter((e) => e.endAt === null)).toHaveLength(1);
+  });
+
+  it("ignores a start on a card that has been deleted", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    const id = s.cards[s.cards.length - 1]!.id;
+    s = applyAction(s, { type: "delete-card", cardId: id });
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW });
+    expect(s.runningTimer).toBeUndefined();
+  });
+});
+
+describe("stop-timer", () => {
+  it("closes the running entry and clears runningTimer", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    const id = s.cards[s.cards.length - 1]!.id;
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW });
+    s = applyAction(s, { type: "stop-timer", now: NOW + 60_000 });
+    expect(s.runningTimer).toBeUndefined();
+    const card = s.cards.find((c) => c.id === id)!;
+    const open = card.entries.find((e) => e.endAt === null);
+    expect(open).toBeUndefined();
+    const closed = card.entries.find((e) => e.endAt === NOW + 60_000);
+    expect(closed).toBeDefined();
+  });
+
+  it("is a no-op when no timer is running", () => {
+    const s = fresh();
+    const after = applyAction(s, { type: "stop-timer", now: NOW });
+    expect(after).toBe(s);
+  });
+});
+
+describe("cold-start-reconcile", () => {
+  it("refreshes lastSeenActive on the running timer", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    const id = s.cards[s.cards.length - 1]!.id;
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW });
+    s = applyAction(s, { type: "cold-start-reconcile", now: NOW + 5_000 });
+    expect(s.runningTimer?.lastSeenActive).toBe(NOW + 5_000);
+  });
+
+  it("clears a running timer whose card was deleted under it", () => {
+    let s = fresh();
+    const col = s.columns[0]!;
+    s = applyAction(s, { type: "create-card", columnId: col.id, title: "A" });
+    const id = s.cards[s.cards.length - 1]!.id;
+    s = applyAction(s, { type: "start-timer", cardId: id, now: NOW });
+    s = applyAction(s, { type: "delete-card", cardId: id });
+    s = applyAction(s, { type: "cold-start-reconcile", now: NOW + 5_000 });
+    expect(s.runningTimer).toBeUndefined();
+  });
+});

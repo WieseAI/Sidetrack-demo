@@ -13,6 +13,20 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
+/** Format a duration in milliseconds as a verbose
+ *  "H:MM:SS" string suitable for the running-timer bar and
+ *  the card-dialog total. */
+export function formatDurationLong(ms: number): string {
+  const safe = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(safe / 3600);
+  const m = Math.floor((safe % 3600) / 60);
+  const s = safe % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0
+    ? `${h}:${pad(m)}:${pad(s)}`
+    : `${pad(m)}:${pad(s)}`;
+}
+
 /** Format a duration in milliseconds as a short human-readable
  *  string suitable for card chips. */
 export function formatDurationCompact(ms: number): string {

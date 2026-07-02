@@ -885,3 +885,280 @@ kbd {
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+/* --- Phase 2: time tracking ----------------------------------------- */
+
+/* The always-visible "running timer" bar. Sticky to the top of
+ * the sidepanel so it stays in view while the user scrolls
+ * horizontally through columns. The bar renders nothing when
+ * no timer is running, so its height is 0 in the idle case. */
+.running-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-accent-soft);
+  border-bottom: 1px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+
+.running-bar__left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.running-bar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  flex: 0 0 auto;
+  /* Subtle pulse so the user knows the timer is live. Disabled
+   * by the prefers-reduced-motion media query at the top. */
+  animation: running-bar-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes running-bar-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.running-bar__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.running-bar__location {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.running-bar__board {
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.running-bar__sep {
+  color: var(--color-text-subtle);
+}
+
+.running-bar__column {
+  color: var(--color-text-muted);
+}
+
+.running-bar__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.running-bar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+}
+
+.running-bar__elapsed {
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+/* The per-card timer button. We style the running state with a
+ * filled accent color so the active card is visually distinct
+ * from the rest of the board. */
+.card__timer {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.card__timer-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  font-size: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  padding: 0;
+}
+
+.card__timer-button:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.card__timer-button--running {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
+}
+
+.card__timer-button--running:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+.card__timer-icon {
+  display: inline-block;
+  line-height: 1;
+  transform: translate(0.5px, -0.5px);
+}
+
+/* The card's total-time chip. When the card is currently being
+ * timed, the dot prefix uses the accent color so the user can
+ * tell at a glance. */
+.card--running {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent-soft), var(--shadow-sm);
+}
+
+.card--running .card__chip--time {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* --- Card-dialog time entries (Phase 2) --------------------------- */
+
+.dialog__entries-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.dialog__entries-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dialog__entries-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.dialog__entries-item--editing {
+  display: block;
+}
+
+.dialog__entries-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.dialog__entries-time {
+  font-size: 12px;
+  color: var(--color-text);
+  display: flex;
+  gap: var(--space-1);
+  align-items: center;
+}
+
+.dialog__entries-meta {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.dialog__entries-duration {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.dialog__entries-source {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+}
+
+.dialog__entries-source--timer {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.dialog__entries-source--idle-trim {
+  color: var(--color-warn);
+  border-color: var(--color-warn);
+}
+
+.dialog__entries-source--manual {
+  color: var(--color-text-muted);
+}
+
+.dialog__entries-actions {
+  display: flex;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+}
+
+.btn--danger-ghost {
+  color: var(--color-danger);
+}
+
+.btn--danger-ghost:hover {
+  background: var(--color-surface-2);
+  border-color: var(--color-danger);
+}
+
+.dialog__entries-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field--inline {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dialog__entries-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
