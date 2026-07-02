@@ -194,3 +194,29 @@ Each risk has: **what** (one line), **why it matters** (impact), **likelihood**
   the empty-sidepanel load + open flow with the DevTools console open.
   Any CSP or service-worker error is filed as a P0 before tagging.
 - **Status:** Open. Tracked by Phase 5.
+
+## Risks added during Phase 2 (2026-07-02, WieseOS Agent)
+
+### R-13 — 1-Hz re-render battery impact at scale
+
+- **What:** The `useTickingNow()` hook forces every
+  `RunningTimerBar` and `TimerButton` consumer to
+  re-render every second while a timer is running. With
+  hundreds of cards (the brief's stated scale), this is
+  O(n) re-renders per second for the column list.
+- **Why:** Re-rendering 500 cards per second is fine for
+  Preact in dev but is wasteful battery + CPU on a
+  sidepanel the user keeps open all day.
+- **Likelihood:** Medium (the brief explicitly says
+  "hundreds of cards").
+- **Mitigation:** Phase 5 will virtualize the column
+  list (R-05 follow-up) so the per-second cost is
+  bounded by the number of *visible* cards, not the
+  total. A simpler interim mitigation: have only the
+  running-bar (one component) drive the tick, and have
+  cards in the same column read the elapsed time from a
+  shared per-column ticker via context. Both are
+  Phase-5-scope refactors; the current implementation
+  is fine for the "small to medium" kanban the brief's
+  acceptance tests assume.
+- **Status:** Open. Tracked by Phase 5.

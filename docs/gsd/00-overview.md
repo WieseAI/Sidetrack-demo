@@ -43,9 +43,9 @@ Phase 5 waits on everything.
 
 | Phase | Title | Issue | Status |
 | ----- | ----- | ----- | ------ |
-| 0 | Research & foundation | [issue 00](../issues/00-phase-0-research-and-foundation.md) | open |
-| 1 | Data layer & kanban core | [issue 01](../issues/01-phase-1-data-layer-and-kanban.md) | open |
-| 2 | Time tracking | [issue 02](../issues/02-phase-2-time-tracking.md) | open |
+| 0 | Research & foundation | [issue 00](../issues/00-phase-0-research-and-foundation.md) | done ([report](../reports/phase-0.md)) |
+| 1 | Data layer & kanban core | [issue 01](../issues/01-phase-1-data-layer-and-kanban.md) | done ([report](../reports/phase-1.md)) |
+| 2 | Time tracking | [issue 02](../issues/02-phase-2-time-tracking.md) | done ([report](../reports/phase-2.md)) |
 | 3 | Idle protection & notifications | [issue 03](../issues/03-phase-3-idle-protection.md) | open |
 | 4 | Capture & reports | [issue 04](../issues/04-phase-4-capture-and-reports.md) | open |
 | 5 | Polish & release quality | [issue 05](../issues/05-phase-5-polish-and-release.md) | open |
