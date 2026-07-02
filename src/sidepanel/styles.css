@@ -1162,3 +1162,194 @@ kbd {
   gap: var(--space-1);
   margin-top: var(--space-1);
 }
+
+/* --- Idle prompt dialog (Phase 3) ---------------------------------- */
+
+.dialog--idle {
+  max-width: 480px;
+  border-color: var(--color-accent);
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px var(--color-accent);
+}
+
+.dialog--idle .dialog__title {
+  font-size: 17px;
+}
+
+.idle-prompt__lede {
+  margin: 0;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.idle-prompt__card-title {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.idle-prompt__choices {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.idle-prompt__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.idle-prompt__choice--default {
+  border-color: var(--color-accent);
+  background: var(--color-surface-2);
+}
+
+.idle-prompt__choice strong {
+  display: block;
+  font-size: 14px;
+}
+
+.idle-prompt__choice-detail {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.idle-prompt__choice-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.idle-prompt__footer {
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.idle-prompt__btn-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: var(--font-mono, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 6px;
+  opacity: 0.8;
+}
+
+.idle-prompt__btn-hint {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 3px;
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-family: var(--font-mono, monospace);
+}
+
+.idle-prompt__hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-4) var(--space-3);
+  font-size: 11px;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+}
+
+.idle-prompt__hint kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+  background: var(--color-surface);
+  font-family: var(--font-mono, monospace);
+  font-size: 10px;
+}
+
+/* The choice buttons inherit the standard `.btn` look; the
+ * idle footer is wider than the standard confirm footer
+ * because it has three buttons instead of two. */
+.idle-prompt__footer .btn {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+/* --- Settings dialog (Phase 3) ------------------------------------ */
+
+.dialog--settings {
+  max-width: 380px;
+}
+
+.settings__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.settings__label {
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.settings__input {
+  width: 80px;
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: right;
+}
+
+.settings__input:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+.settings__help {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.settings__error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-danger);
+}

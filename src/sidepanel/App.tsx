@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import { PROJECT_NAME, VERSION } from "../shared/version";
 import { usePersistedState, useStorageHandle as useStorageHandleLocal } from "./state/storage";
 import { exportToJson, defaultExportFilename, importFromJson } from "../shared/io";
@@ -6,12 +6,22 @@ import { Board } from "./components/Board";
 import { BoardPicker } from "./components/BoardPicker";
 import { CardDialog } from "./components/CardDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { IdlePromptDialog, type IdleChoice } from "./components/IdlePromptDialog";
 import { RunningTimerBar } from "./components/RunningTimerBar";
+import { SettingsDialog } from "./components/SettingsDialog";
 import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
-import type { BoardId, CardId, PersistedState } from "../shared/model";
+import {
+  dismissIdlePrompt,
+  setIdlePrompt,
+  trimTimer,
+  trimTimerAndStop,
+} from "../shared/timer-actions";
+import { isPromptStale } from "../shared/idle";
+import { formatDurationLong } from "../shared/format";
+import type { BoardId, CardId, IdlePrompt, PersistedState } from "../shared/model";
 
 
 /**
@@ -75,6 +85,95 @@ export function App() {
     }
   }, [state?.runningTimer?.cardId, state, toasts]);
 
+  // Phase 3 — R-03 cold-start gap detection.
+  //
+  // When the sidepanel opens, the persisted state may already
+  // have a `pendingIdlePrompt` (the SW set it while we were
+  // closed, R-02) or the gap since `lastSeenActive` may be
+  // large enough to warrant one (R-03 — "browser was closed").
+  //
+  // We delegate the *detection* to the pure helper in
+  // `src/shared/idle.ts` and the *write* to the SW via a
+  // runtime message; the SW owns the timer-side write
+  // (D-06). The resolution (Keep/Trim/Stop) is handled in
+  // the `resolveIdleChoice` callback below.
+  //
+  // We also clear any stale prompt whose entryId no longer
+  // matches an open entry (defensive: shouldn't happen in
+  // practice, but the idle detector depends on the prompt
+  // pointing at a live entry).
+  const hasBootstrappedRef = useRef(false);
+  useEffect(() => {
+    if (!state) return;
+    if (hasBootstrappedRef.current) return;
+    hasBootstrappedRef.current = true;
+    if (state.pendingIdlePrompt) {
+      if (isPromptStale(state, state.pendingIdlePrompt)) {
+        void setIdlePrompt(useStorageHandleLocal(), undefined);
+      } else {
+        toasts.push({
+          kind: "info",
+          text: `Idle prompt pending: ${formatDurationLong(state.pendingIdlePrompt.idleForMs)} on "${state.cards.find((c) => c.id === state.pendingIdlePrompt!.cardId)?.title ?? "card"}"`,
+        });
+      }
+    } else {
+      // No pending prompt yet; the SW's 1-minute alarm tick
+      // will create one if the running timer has crossed the
+      // threshold while we were closed. We do not need to do
+      // anything synchronously here — the dialog will appear
+      // when the SW writes the prompt and our state hook
+      // re-renders.
+    }
+  }, [state, toasts]);
+
+  /**
+   * Apply the user's idle-prompt choice. This is the
+   * brief's keep/trim/stop UX wired to the reducer.
+   * `onResolve` is called by `IdlePromptDialog` and
+   * dispatches to the appropriate timer action.
+   */
+  const resolveIdleChoice = useCallback(
+    async (prompt: IdlePrompt, choice: IdleChoice) => {
+      const handle = useStorageHandleLocal();
+      if (choice === "keep") {
+        // Keep all: just clear the prompt. The running entry
+        // stays open. We also touch the anchor so the next
+        // alarm tick waits another full threshold before
+        // re-prompting (the user just acknowledged).
+        await dismissIdlePrompt(handle);
+        await handle.mutate({ type: "touch-active", now: Date.now() });
+        toasts.push({ kind: "info", text: "Kept all the time." });
+      } else if (choice === "trim") {
+        // Trim: retroactively close the current entry at
+        // `lastSeenActive` and start a new one there.
+        await trimTimer(handle, prompt.lastSeenActive);
+        toasts.push({
+          kind: "info",
+          text: `Trimmed ${formatDurationLong(prompt.idleForMs)} of idle time.`,
+        });
+      } else {
+        // Stop (and trim): single atomic action that closes
+        // the running entry at `lastSeenActive` and clears
+        // the running block. No new entry is opened because
+        // the user picked Stop.
+        await trimTimerAndStop(handle, prompt.lastSeenActive);
+        toasts.push({
+          kind: "info",
+          text: `Trimmed idle time and stopped the timer.`,
+        });
+      }
+      // Best-effort: clear the OS notification if we can.
+      try {
+        if (typeof chrome !== "undefined" && chrome.runtime?.sendMessage) {
+          chrome.runtime.sendMessage({ type: "clear-idle-notification" });
+        }
+      } catch {
+        // The service worker may not be listening; that's fine.
+      }
+    },
+    [toasts],
+  );
+
   // Global keyboard shortcuts (Alt+Shift+A quick-add, etc.). The
   // D-17 chords are the manifest's `commands`, which the service
   // worker relays to the sidepanel via chrome.runtime messages.
@@ -87,6 +186,7 @@ export function App() {
         state={state}
         activeBoardId={activeBoardId}
         onSelectBoard={setActiveBoardId}
+        onOpenSettings={() => dialogs.push({ kind: "settings" })}
         onImport={async (text) => {
           try {
             const imported = importFromJson(text);
@@ -133,6 +233,15 @@ export function App() {
       ) : (
         <Skeleton />
       )}
+      {state && state.pendingIdlePrompt && state.pendingIdlePrompt.kind === "open" ? (
+        <IdlePromptDialog
+          state={state}
+          prompt={state.pendingIdlePrompt}
+          onResolve={async (choice) => {
+            await resolveIdleChoice(state.pendingIdlePrompt!, choice);
+          }}
+        />
+      ) : null}
       {state ? <RunningTimerBar state={state} /> : null}
       <Footer />
       <DialogRenderer state={state} dialogs={dialogs} />
@@ -152,6 +261,7 @@ export function App() {
             target.select();
           }
         }}
+        onOpenSettings={() => dialogs.push({ kind: "settings" })}
       />
     </main>
   );
@@ -163,8 +273,9 @@ function Header(props: {
   onSelectBoard: (id: BoardId) => void;
   onImport: (text: string) => void | Promise<void>;
   onExport: () => void | Promise<void>;
+  onOpenSettings: () => void;
 }) {
-  const { state, activeBoardId, onSelectBoard, onImport, onExport } = props;
+  const { state, activeBoardId, onSelectBoard, onImport, onExport, onOpenSettings } = props;
   return (
     <header class="app__header" role="banner">
       <h1 class="app__title">
@@ -181,6 +292,7 @@ function Header(props: {
       <div class="app__header-actions">
         <ImportButton onImport={onImport} />
         <ExportButton onExport={onExport} />
+        <SettingsButton onOpen={onOpenSettings} />
         <span class="app__version" aria-label={`version ${VERSION}`}>
           v{VERSION}
         </span>
@@ -239,6 +351,21 @@ function Skeleton() {
   );
 }
 
+function SettingsButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      class="btn btn--ghost"
+      type="button"
+      title="Settings"
+      onClick={onOpen}
+      data-testid="settings-button"
+      aria-label="Open settings"
+    >
+      Settings
+    </button>
+  );
+}
+
 function Footer() {
   return (
     <footer class="app__footer">
@@ -285,6 +412,11 @@ function DialogRenderer({
           dialogs.pop();
         }}
       />
+    );
+  }
+  if (top.kind === "settings") {
+    return (
+      <SettingsDialog state={state} onClose={() => dialogs.pop()} />
     );
   }
   return null;
