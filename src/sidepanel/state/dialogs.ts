@@ -24,6 +24,9 @@ export type Dialog =
       confirmLabel: string;
       danger?: boolean;
       onConfirm: () => void;
+    }
+  | {
+      kind: "settings";
     };
 
 export interface DialogApi {

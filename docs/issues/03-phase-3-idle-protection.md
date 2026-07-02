@@ -57,20 +57,29 @@ more here than anywhere else.
 
 ## Acceptance criteria
 
-- [ ] Brief AC #5 passes: leave the computer with a timer running —
+- [x] Brief AC #5 passes: leave the computer with a timer running —
       user gets the idle prompt and "trim idle time" removes exactly
-      the idle period from the entry.
-- [ ] Brief AC implicit-#3 passes for the cold-start case: starting a
+      the idle period from the entry. Covered by
+      `tests/idle-ui.test.tsx > Phase 3 — end-to-end brief AC #5` and
+      `tests/idle.test.ts > trim-timer reducer action > preserves the
+      user's total tracked time on the card except for the trimmed
+      window`.
+- [x] Brief AC implicit-#3 passes for the cold-start case: starting a
       timer, closing Chrome, returning hours later — user is prompted
-      about the gap, with Trim as the default.
-- [ ] Threshold is configurable and survives restart.
-- [ ] The prompt is keyboard-friendly: arrow keys to choose, Enter
+      about the gap, with Trim as the default. Covered by the
+      persisted `pendingIdlePrompt` + the sidepanel's cold-start
+      effect in `App.tsx`.
+- [x] Threshold is configurable and survives restart. Settings dialog
+      persists via `set-setting`; `state.settings.idleThresholdSeconds`
+      is read by the pure detector on every tick.
+- [x] The prompt is keyboard-friendly: arrow keys to choose, Enter
       to confirm, Esc to dismiss (= keep all, with a clear hint).
-- [ ] The prompt is reachable when the sidepanel is closed (via
-      `chrome.notifications` if that was the chosen surface) and
-      clicking the notification re-opens the sidepanel with the
-      prompt still pending.
-- [ ] `docs/reports/phase-3.md` exists.
+      `IdlePromptDialog` also accepts the `1/2/3` number keys.
+- [x] The prompt is reachable when the sidepanel is closed (via
+      `chrome.notifications` as the deep-link surface) and clicking
+      the notification re-opens the sidepanel with the prompt still
+      pending. `bindNotificationClick()` + `openSidePanelForIdle()`.
+- [x] `docs/reports/phase-3.md` exists.
 
 ## Dependencies
 
@@ -78,6 +87,12 @@ more here than anywhere else.
 
 ## Definition of done
 
-The brief's AC #5 passes. The cold-start gap case is handled. The
-prompt is the polished centerpiece of the product, not a generic
-browser notification.
+**Phase 3 — done.** See
+[`docs/reports/phase-3.md`](../reports/phase-3.md) for the
+full retro and test evidence. The brief's AC #5 passes
+end-to-end. The cold-start gap case is handled by the
+persisted `pendingIdlePrompt` field. The prompt renders
+in-sidepanel with full keyboard support; the OS
+notification is the deep-link from the tray. The
+threshold is configurable via the new settings dialog.
+

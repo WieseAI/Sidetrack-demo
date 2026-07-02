@@ -10,7 +10,7 @@
  * same serialized write path.
  */
 
-import type { CardId } from "./model.js";
+import type { CardId, IdlePrompt } from "./model.js";
 import type { StorageHandle } from "./storage.js";
 
 /** Start a timer on `cardId`. If another timer is already
@@ -48,4 +48,62 @@ export async function reconcileOnColdStart(
   now: number = Date.now(),
 ): Promise<void> {
   await storage.mutate({ type: "cold-start-reconcile", now });
+}
+
+/**
+ * Trim the running timer back to `trimTo`. Closes the
+ * current open `TimeEntry` at `trimTo` (with
+ * `source: "idle-trim"`) and opens a new `TimeEntry` at
+ * `trimTo` so the running entry continues seamlessly. The
+ * running block's `startedAt` anchor is advanced to
+ * `trimTo`. The reducer clears `pendingIdlePrompt` as
+ * part of the same write.
+ *
+ * Use this from the idle prompt's "Trim" button (brief AC #5)
+ * and from the cold-start gap handler.
+ */
+export async function trimTimer(
+  storage: StorageHandle,
+  trimTo: number,
+  now: number = Date.now(),
+): Promise<void> {
+  await storage.mutate({ type: "trim-timer", trimTo, now });
+}
+
+/**
+ * Trim the running timer back to `trimTo` and stop it. The
+ * "Stop (and trim)" choice from the idle prompt. Closes the
+ * open entry at `trimTo` with `source: "idle-trim"` and
+ * clears the running block; no new entry is opened.
+ */
+export async function trimTimerAndStop(
+  storage: StorageHandle,
+  trimTo: number,
+  now: number = Date.now(),
+): Promise<void> {
+  await storage.mutate({ type: "trim-timer-and-stop", trimTo, now });
+}
+
+/**
+ * Persist a pending idle prompt. The service worker calls
+ * this when the alarm tick crosses the threshold (D-08);
+ * the sidepanel calls it on cold start when it sees a gap
+ * larger than the threshold (R-03). The reducer is the only
+ * writer of `pendingIdlePrompt`.
+ */
+export async function setIdlePrompt(
+  storage: StorageHandle,
+  prompt: IdlePrompt | undefined,
+): Promise<void> {
+  await storage.mutate({ type: "set-idle-prompt", prompt });
+}
+
+/**
+ * Clear any pending idle prompt without affecting the timer.
+ * Used by the "Keep all" path and by Esc-to-dismiss.
+ */
+export async function dismissIdlePrompt(
+  storage: StorageHandle,
+): Promise<void> {
+  await storage.mutate({ type: "dismiss-idle-prompt" });
 }

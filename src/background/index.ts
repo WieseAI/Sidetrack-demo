@@ -25,6 +25,13 @@ import {
   ensureTimerAlarm,
   reconcileOnStartup,
 } from "./timer";
+import {
+  bindIdleAlarm,
+  bindNotificationClick,
+  bindSystemIdle,
+  clearIdleNotification,
+  ensureIdleAlarm,
+} from "./idle";
 
 const SIDEPANEL_TOGGLE_BEHAVIOR = {
   // Open, don't toggle, on the active tab. We do not call setOptions
@@ -66,6 +73,26 @@ chrome.runtime.onStartup?.addListener(() => {
 ensureTimerAlarm();
 bindTimerAlarm();
 bindTimerMessages();
+
+// Phase 3 wiring: idle alarm + system-idle + notification deep link.
+ensureIdleAlarm();
+bindIdleAlarm();
+bindSystemIdle();
+bindNotificationClick();
+
+// Sidepanel can ask us to clear the OS notification once
+// the user has acknowledged the prompt in-sidepanel. The
+// sidepanel pings us via chrome.runtime.sendMessage on
+// dialog open and on each Keep/Trim/Stop click.
+chrome.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
+  const m = message as { type?: string } | null;
+  if (m && m.type === "clear-idle-notification") {
+    clearIdleNotification();
+    sendResponse({ ok: true });
+    return false;
+  }
+  return false;
+});
 
 chrome.commands?.onCommand.addListener((command) => {
   // The commands are declared in manifest.config.js (D-17) and become

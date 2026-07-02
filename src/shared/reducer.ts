@@ -21,6 +21,7 @@ import type {
   Column,
   ColumnId,
   EntryId,
+  IdlePrompt,
   PersistedState,
   TimeEntry,
 } from "./model.js";
@@ -81,7 +82,50 @@ export type Action =
   | { type: "start-timer"; cardId: CardId; now: number }
   | { type: "stop-timer"; now: number }
   | { type: "cold-start-reconcile"; now: number }
-  | { type: "replace-state"; state: PersistedState };
+  | { type: "replace-state"; state: PersistedState }
+  | {
+      /**
+       * Trim the running timer back to `trimTo`. Closes the
+       * current open `TimeEntry` at `trimTo` (with
+       * `source: "idle-trim"`) and opens a new `TimeEntry` at
+       * `trimTo` so the running entry continues seamlessly.
+       * `now` is the wall clock at the moment of the trim
+       * (used to advance `lastSeenActive`).
+       */
+      type: "trim-timer";
+      trimTo: number;
+      now: number;
+    }
+  | {
+      /**
+       * Trim the running timer back to `trimTo` and stop it.
+       * Closes the open `TimeEntry` at `trimTo` (with
+       * `source: "idle-trim"`) and clears the running block.
+       * No new entry is opened. This is the "Stop (and
+       * trim)" choice from the idle prompt.
+       */
+      type: "trim-timer-and-stop";
+      trimTo: number;
+      now: number;
+    }
+  | {
+      /**
+       * Mark a pending idle prompt so the sidepanel knows to
+       * render the dialog. `undefined` clears the prompt.
+       * The reducer is the only writer of `pendingIdlePrompt`.
+       */
+      type: "set-idle-prompt";
+      prompt: IdlePrompt | undefined;
+    }
+  | {
+      /**
+       * Clear any pending idle prompt without affecting the
+       * timer. Used by the "Keep all" path, by the Esc-to-
+       * dismiss keyboard shortcut, and by sidepanel cold-start
+       * suppression once the user has acknowledged the gap.
+       */
+      type: "dismiss-idle-prompt";
+    };
 
 /** Apply an action to produce a new state. */
 export function applyAction(state: PersistedState, action: Action): PersistedState {
@@ -131,6 +175,14 @@ export function applyAction(state: PersistedState, action: Action): PersistedSta
       return coldStartReconcile(state, action.now);
     case "replace-state":
       return action.state;
+    case "trim-timer":
+      return trimTimer(state, action.trimTo, action.now);
+    case "trim-timer-and-stop":
+      return trimTimerAndStop(state, action.trimTo, action.now);
+    case "set-idle-prompt":
+      return { ...state, pendingIdlePrompt: action.prompt };
+    case "dismiss-idle-prompt":
+      return { ...state, pendingIdlePrompt: undefined };
   }
 }
 
@@ -494,6 +546,123 @@ function stopTimer(state: PersistedState, now: number): PersistedState {
   return {
     ...closeRunningEntry(state, now),
     lastSeenActive: now,
+  };
+}
+
+/**
+ * Trim the running timer back to `trimTo` and stop it.
+ *
+ * This is the "Stop (and trim)" choice from the idle prompt
+ * (brief AC #5). It closes the open `TimeEntry` at `trimTo`
+ * with `source: "idle-trim"` and clears the running block.
+ * Unlike `trimTimer`, it does NOT open a new entry — the
+ * user picked Stop, so the timer is finished.
+ *
+ * If `trimTo <= startedAt` or there is no running timer, it
+ * is equivalent to a plain `stop-timer`.
+ */
+function trimTimerAndStop(
+  state: PersistedState,
+  trimTo: number,
+  now: number,
+): PersistedState {
+  const rt = state.runningTimer;
+  if (!rt) return state;
+  const effectiveTrim = Math.max(trimTo, rt.startedAt);
+  return {
+    ...state,
+    cards: state.cards.map((c) => {
+      if (c.id !== rt.cardId) return c;
+      let touched = false;
+      const entries = c.entries.map((e) => {
+        if (touched) return e;
+        if (e.endAt !== null) return e;
+        if (e.startAt !== rt.startedAt) return e;
+        touched = true;
+        return { ...e, endAt: effectiveTrim, source: "idle-trim" as const };
+      });
+      return { ...c, entries };
+    }),
+    runningTimer: undefined,
+    lastSeenActive: now,
+    pendingIdlePrompt: undefined,
+  };
+}
+
+/**
+ * Trim the currently running timer back to `trimTo`.
+ *
+ * "Trim" is the brief's "trim the idle time away" choice from
+ * the idle prompt. The semantics: the open `TimeEntry` is
+ * closed at `trimTo` with `source: "idle-trim"` (so the user
+ * can see in the entry list that the gap was retroactively
+ * removed), and a new `TimeEntry` is opened at `trimTo` with
+ * `source: "timer"` so the running entry continues seamlessly
+ * from the trim point forward. The `RunningTimer.startedAt`
+ * anchor is advanced to `trimTo` so elapsed time
+ * (`now - startedAt`) reads correctly.
+ *
+ * If `trimTo` is at or after the running entry's `startedAt`,
+ * the function is a no-op (nothing to trim). If there is no
+ * running timer, it is a no-op.
+ */
+function trimTimer(
+  state: PersistedState,
+  trimTo: number,
+  now: number,
+): PersistedState {
+  const rt = state.runningTimer;
+  if (!rt) return state;
+  if (trimTo <= rt.startedAt) return state;
+  let touched = false;
+  const newOpenEntry: TimeEntry = {
+    id: makeEntryId(),
+    cardId: rt.cardId,
+    startAt: trimTo,
+    endAt: null,
+    source: "timer",
+  };
+  return {
+    ...state,
+    cards: state.cards.map((c) => {
+      if (c.id !== rt.cardId) return c;
+      const entries = c.entries.map((e) => {
+        if (touched) return e;
+        if (e.endAt !== null) return e;
+        if (e.startAt !== rt.startedAt) return e;
+        touched = true;
+        return { ...e, endAt: trimTo, source: "idle-trim" as const };
+      });
+      // Only append the new open entry if the trim was real
+      // (i.e. the existing entry was actually closed). If the
+      // running entry's `startedAt` did not match anything in
+      // the card (which can happen if the user manually edited
+      // the entry out from under the timer), we still append
+      // the new open entry to keep the running block
+      // consistent.
+      if (!touched) return { ...c, entries: [...entries, newOpenEntry] };
+      return { ...c, entries: [...entries, newOpenEntry] };
+    }),
+    runningTimer: {
+      cardId: rt.cardId,
+      startedAt: trimTo,
+      lastSeenActive: now,
+    },
+    lastSeenActive: now,
+    // Mark the prompt as `trimmed-recently` rather than
+    // clearing it so the next alarm tick within the cooldown
+    // window does not re-prompt for the same gap. The
+    // detector (`evaluateIdle`) reads the `kind` and
+    // short-circuits. The dismissed-recently lifetime lives
+    // in `TRIM_RECENTLY_LIFETIME_MS` in `idle.ts`.
+    pendingIdlePrompt: {
+      cardId: rt.cardId,
+      entryId: newOpenEntry.id,
+      detectedAt: now,
+      lastSeenActive: now,
+      idleForMs: 0,
+      kind: "trimmed-recently",
+    },
   };
 }
 
