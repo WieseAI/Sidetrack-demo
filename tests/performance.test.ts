@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { createStorage, InMemoryStorage } from "../src/shared/storage";
 import { applyAction } from "../src/shared/reducer";
 import { defaultState } from "../src/shared/seed";
 import {
@@ -8,7 +7,7 @@ import {
   totalWithRunning,
 } from "../src/shared/timer";
 import { computeReport } from "../src/shared/reports";
-import { makeBoardId, makeCardId, makeColumnId } from "../src/shared/ids";
+import { makeCardId, makeEntryId } from "../src/shared/ids";
 import type { PersistedState } from "../src/shared/model";
 
 /**
@@ -41,8 +40,7 @@ const T0 = 1_700_000_000_000;
  *  entry per card. */
 function buildLargeState(cardCount: number): PersistedState {
   const base = defaultState(T0);
-  const boardId = base.boards[0]!.id;
-  const columnIds = base.columns.map((c) => c.id);
+    const columnIds = base.columns.map((c) => c.id);
   // Add a 5th column if we need more spread.
   const newColumns = base.columns.slice(0, 5);
   const cards: PersistedState["cards"] = [];
@@ -56,14 +54,14 @@ function buildLargeState(cardCount: number): PersistedState {
       entries: i % 4 === 0 && i > 0
         ? [
             {
-              id: makeCardId(),
+              id: makeEntryId(),
               cardId: id,
               startAt: T0 - 3600_000,
               endAt: T0 - 1800_000,
               source: "timer",
             },
             {
-              id: makeCardId(),
+              id: makeEntryId(),
               cardId: id,
               startAt: T0 - 1800_000,
               endAt: T0 - 900_000,
@@ -80,7 +78,7 @@ function buildLargeState(cardCount: number): PersistedState {
   // Make one card (the first one) currently running.
   const firstCard = cards[0]!;
   firstCard.entries.push({
-    id: makeCardId(),
+    id: makeEntryId(),
     cardId: firstCard.id,
     startAt: T0,
     endAt: null,
@@ -153,7 +151,7 @@ describe("Phase 5 — performance with 500 cards", () => {
     const samples: number[] = [];
     for (let i = 0; i < 30; i++) {
       const t0 = performance.now();
-      const r = computeReport(state, "today", T0);
+      computeReport(state, "today", T0);
       samples.push(performance.now() - t0);
     }
     samples.sort((a, b) => a - b);

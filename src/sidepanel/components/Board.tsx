@@ -180,7 +180,7 @@ export function Board({
         </div>
       </section>
       <DragOverlay>
-        {activeCard ? <CardView card={activeCard} state={state} ghost /> : null}
+        {activeCard ? <CardView card={activeCard} state={state} ghost toasts={toasts} /> : null}
       </DragOverlay>
     </DndContext>
   );

@@ -12,7 +12,6 @@ import {
   InMemoryStorage,
 } from "../src/shared/storage";
 import { setActiveStorage } from "../src/sidepanel/state/storage";
-import { defaultState } from "../src/shared/seed";
 
 /**
  * Phase 5 — accessibility & UX pass.

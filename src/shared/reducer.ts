@@ -188,6 +188,20 @@ export type Action =
     }
   | {
       /**
+       * Phase 5 — restore a column that was just deleted,
+       * along with its cards. The caller supplies a
+       * snapshot taken right before the delete. The
+       * reducer appends the column to its owning board
+       * and the cards to the persisted collection in a
+       * single atomic write.
+       */
+      type: "restore-column";
+      boardId: BoardId;
+      column: Column;
+      cards: Card[];
+    }
+  | {
+      /**
        * Phase 5 — restore a time entry that was just deleted
        * from a card. The entry is re-appended to the card's
        * entries array (the order is not important for the
@@ -266,6 +280,8 @@ export function applyAction(state: PersistedState, action: Action): PersistedSta
       return restoreCard(state, action.card, action.columnId, action.index);
     case "restore-board":
       return restoreBoard(state, action.board, action.columns, action.cards);
+    case "restore-column":
+      return restoreColumn(state, action.boardId, action.column, action.cards);
     case "restore-entry":
       return restoreEntry(state, action.cardId, action.entry);
   }
@@ -654,6 +670,37 @@ function restoreBoard(
     boards: [...state.boards, board],
     columns: [...state.columns, ...columns],
     cards: [...state.cards, ...cards],
+  };
+}
+
+/**
+ * Phase 5 — restore a column and its cards. The column
+ * is re-appended to its owning board at the end of
+ * `columnIds`. The cards are re-added to the persisted
+ * collection. If any id collides with an existing
+ * entity, the operation is a no-op.
+ */
+function restoreColumn(
+  state: PersistedState,
+  boardId: BoardId,
+  column: Column,
+  cards: Card[],
+): PersistedState {
+  if (state.columns.some((c) => c.id === column.id)) return state;
+  const cardIds = new Set(cards.map((c) => c.id));
+  if (state.cards.some((c) => cardIds.has(c.id))) return state;
+  const board = state.boards.find((b) => b.id === boardId);
+  if (!board) return state;
+  if (board.columnIds.includes(column.id)) return state;
+  return {
+    ...state,
+    columns: [...state.columns, column],
+    cards: [...state.cards, ...cards],
+    boards: state.boards.map((b) =>
+      b.id === boardId
+        ? { ...b, columnIds: [...b.columnIds, column.id] }
+        : b,
+    ),
   };
 }
 

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 360" width="480" height="360">
+  <rect x="0" y="0" width="480" height="360" fill="#f7f7f8"/>
+  <rect x="0" y="0" width="480" height="56" fill="#ffffff"/>
+  <line x1="0" y1="56" x2="480" y2="56" stroke="#e4e4e7" stroke-width="1"/>
+  <text x="16" y="34" font-family="-apple-system, sans-serif" font-size="16" font-weight="600" fill="#18181b">Main ▾</text>
+
+  <!-- Backdrop overlay -->
+  <rect x="0" y="0" width="480" height="360" fill="rgba(15,15,20,0.45)"/>
+
+  <!-- Idle dialog -->
+  <rect x="60" y="60" width="360" height="240" rx="10" fill="#ffffff" stroke="#6366f1" stroke-width="2"/>
+  <text x="76" y="92" font-family="-apple-system, sans-serif" font-size="15" font-weight="600" fill="#18181b">You've been away for 12m 30s</text>
+  <text x="76" y="116" font-family="-apple-system, sans-serif" font-size="13" fill="#18181b">Timer is still running on</text>
+  <text x="76" y="134" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#6366f1">"Refactor the timer reducer"</text>
+
+  <text x="76" y="164" font-family="-apple-system, sans-serif" font-size="11" fill="#71717a">Keep all the time, trim the idle period, or trim and stop.</text>
+
+  <!-- Choice rows -->
+  <rect x="76" y="178" width="328" height="40" rx="6" fill="#fafafa" stroke="#e4e4e7"/>
+  <rect x="84" y="186" width="22" height="22" rx="4" fill="#ffffff" stroke="#d4d4d8"/>
+  <text x="92" y="202" font-family="ui-monospace, monospace" font-size="11" font-weight="600" fill="#71717a">1</text>
+  <text x="116" y="198" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#18181b">Keep all the time</text>
+  <text x="116" y="212" font-family="-apple-system, sans-serif" font-size="11" fill="#71717a">+12m 30s of tracked time on the card</text>
+
+  <rect x="76" y="226" width="328" height="40" rx="6" fill="#fafafa" stroke="#6366f1" stroke-width="1.5"/>
+  <rect x="84" y="234" width="22" height="22" rx="4" fill="#ffffff" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="92" y="250" font-family="ui-monospace, monospace" font-size="11" font-weight="600" fill="#6366f1">2</text>
+  <text x="116" y="246" font-family="-apple-system, sans-serif" font-size="13" font-weight="600" fill="#18181b">Trim idle time</text>
+  <text x="116" y="260" font-family="-apple-system, sans-serif" font-size="11" fill="#71717a">Retroactively close the entry at your last active moment</text>
+
+  <!-- Hint -->
+  <text x="240" y="288" font-family="ui-monospace, monospace" font-size="10" fill="#71717a" text-anchor="middle">Esc keeps all · ←/→ to choose</text>
+</svg>
