@@ -1,12 +1,16 @@
 import { defineConfig } from "vitest/config";
 
-// Test config is separate from vite.config.ts because:
-//   1. The CRX plugin is for build only and has no role in unit tests.
-//   2. Tests run in happy-dom, not a real browser, so the alias to
-//      preact/compat is unnecessary.
 export default defineConfig({
   resolve: {
     alias: {
+      // @dnd-kit's CJS shims `require("react")`, which bypasses
+      // Vite's resolver. We point the package entry at the ESM
+      // build so all `react` imports go through Vite and hit the
+      // alias below. We do the same for the related packages
+      // that dnd-kit pulls in.
+      "@dnd-kit/core": "@dnd-kit/core/dist/core.esm.js",
+      "@dnd-kit/utilities": "@dnd-kit/utilities/dist/utilities.esm.js",
+      "@dnd-kit/accessibility": "@dnd-kit/accessibility/dist/accessibility.esm.js",
       react: "preact/compat",
       "react-dom": "preact/compat",
     },
