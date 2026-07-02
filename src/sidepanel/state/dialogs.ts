@@ -27,6 +27,9 @@ export type Dialog =
     }
   | {
       kind: "settings";
+    }
+  | {
+      kind: "shortcuts";
     };
 
 export interface DialogApi {

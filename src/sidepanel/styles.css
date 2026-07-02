@@ -1963,3 +1963,83 @@ kbd {
     /* No animations in the overlay; respect the global rule. */
   }
 }
+
+
+/* --- Phase 5: keyboard shortcuts help dialog ---------------------- */
+
+.dialog--shortcuts {
+  max-width: 520px;
+}
+
+.shortcuts__list {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.shortcuts__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shortcuts__group-title {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.shortcuts__group dl {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shortcuts__row {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.shortcuts__row dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.shortcuts__row dt span {
+  color: var(--color-text-subtle);
+  font-size: 12px;
+}
+
+.shortcuts__row dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.shortcuts__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.shortcuts__note code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
+}

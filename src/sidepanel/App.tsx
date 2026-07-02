@@ -13,6 +13,7 @@ import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { ReportView } from "./components/ReportView";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
+import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
 import {
@@ -145,6 +146,63 @@ export function App() {
       }
     };
   }, [state, toasts, dialogs]);
+
+  // Phase 5 — listen for the global chrome.commands relayed
+  // by the service worker. The SW sends { type: "command",
+  // command: "open-sidepanel" | "quick-add" | "toggle-timer" }
+  // and the sidepanel dispatches the right action. The
+  // sidepanel may not be open when the chord is pressed; in
+  // that case the SW opens the sidepanel for "open-sidepanel"
+  // and drops the others.
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    const listener = (
+      message: unknown,
+    ) => {
+      if (!message || typeof message !== "object") return;
+      const m = message as { type?: unknown; command?: unknown };
+      if (m.type !== "command" || typeof m.command !== "string") return;
+      if (m.command === "quick-add") {
+        const target = document.querySelector<HTMLInputElement>(
+          "[data-quickadd-input]",
+        );
+        if (target) {
+          target.focus();
+          target.select();
+        }
+      } else if (m.command === "toggle-timer") {
+        if (state?.runningTimer) {
+          void useStorageHandleLocal()
+            .mutate({ type: "stop-timer", now: Date.now() })
+            .catch(() => undefined);
+        } else if (state && activeBoardId) {
+          const board = state.boards.find((b) => b.id === activeBoardId);
+          const firstColumnId = board?.columnIds[0];
+          const column = firstColumnId
+            ? state.columns.find((c) => c.id === firstColumnId)
+            : undefined;
+          const firstCardId = column?.cardIds[0];
+          if (firstCardId) {
+            void useStorageHandleLocal()
+              .mutate({
+                type: "start-timer",
+                cardId: firstCardId,
+                now: Date.now(),
+              })
+              .catch(() => undefined);
+          }
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => {
+      try {
+        chrome.runtime.onMessage.removeListener(listener);
+      } catch {
+        // ignore
+      }
+    };
+  }, [state, activeBoardId]);
 
   // Phase 3 — R-03 cold-start gap detection.
   //
@@ -364,6 +422,33 @@ export function App() {
           }
         }}
         onOpenSettings={() => dialogs.push({ kind: "settings" })}
+        onOpenShortcutsHelp={() => dialogs.push({ kind: "shortcuts" })}
+        onToggleTimer={() => {
+          // Phase 5 — global "toggle timer" chord. The
+          // sidepanel does not track which card is "focused"
+          // (the kanban is one big grid), so the most useful
+          // behaviour is: if a timer is running, stop it; if
+          // not, start one on the first card in the active
+          // board. This is the same behaviour the brief
+          // describes for the global Alt+Shift+T shortcut.
+          if (state?.runningTimer) {
+            void useStorageHandleLocal()
+              .mutate({ type: "stop-timer", now: Date.now() })
+              .catch(() => undefined);
+          } else if (state && activeBoardId) {
+            const board = state.boards.find((b) => b.id === activeBoardId);
+            if (!board) return;
+            const firstColumnId = board.columnIds[0];
+            if (!firstColumnId) return;
+            const column = state.columns.find((c) => c.id === firstColumnId);
+            if (!column) return;
+            const firstCardId = column.cardIds[0];
+            if (!firstCardId) return;
+            void useStorageHandleLocal()
+              .mutate({ type: "start-timer", cardId: firstCardId, now: Date.now() })
+              .catch(() => undefined);
+          }
+        }}
       />
     </main>
   );
@@ -549,6 +634,9 @@ function DialogRenderer({
     return (
       <SettingsDialog state={state} onClose={() => dialogs.pop()} />
     );
+  }
+  if (top.kind === "shortcuts") {
+    return <KeyboardShortcutsHelp onClose={() => dialogs.pop()} />;
   }
   return null;
 }

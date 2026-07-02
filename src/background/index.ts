@@ -107,11 +107,38 @@ chrome.runtime?.onMessage?.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.commands?.onCommand.addListener((command) => {
-  // The commands are declared in manifest.config.js (D-17) and become
-  // available on chrome://extensions/shortcuts. Phase 0 logs the
-  // command for end-to-end smoke testing; later phases dispatch it
-  // to the sidepanel via a runtime message.
-  console.info("[sidetrack] command:", command);
+  // The commands are declared in manifest.config.js (D-17) and
+  // become available on chrome://extensions/shortcuts. Phase 5
+  // forwards the chord to the sidepanel via a runtime message
+  // so the sidepanel can dispatch the action (focus the
+  // quick-add input, start/stop the focused card's timer, or
+  // open the sidepanel). The message is fire-and-forget; the
+  // sidepanel may not be open, in which case the SW opens it
+  // for the "open-sidepanel" command and drops the others.
+  if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+    return;
+  }
+  if (command === "open-sidepanel") {
+    // The user is asking to open the sidepanel. The toolbar
+    // action already does this; we just open on the focused
+    // window for parity with the keyboard chord.
+    void (async () => {
+      try {
+        const wins = await chrome.windows.getAll({ populate: false });
+        const last = wins.find((w) => w.focused) ?? wins[0];
+        if (last?.id) await chrome.sidePanel.open({ windowId: last.id });
+      } catch (err) {
+        console.warn("[sidetrack] open sidepanel via command failed", err);
+      }
+    })();
+    return;
+  }
+  try {
+    chrome.runtime.sendMessage({ type: "command", command });
+  } catch {
+    // The sidepanel may not be open; that's fine for chords
+    // that only matter inside the panel.
+  }
 });
 
 export {}; // ensure this is treated as a module by the bundler
