@@ -11,6 +11,7 @@ import { RunningTimerBar } from "./components/RunningTimerBar";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
+import { ReportView } from "./components/ReportView";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
 import {
@@ -46,6 +47,13 @@ export function App() {
   // board; the picker writes the user's choice to localStorage so
   // it persists across sidepanel closes.
   const [activeBoardId, setActiveBoardId] = useState<BoardId | null>(null);
+
+  // Phase 4 — the active view. "board" is the kanban, "reports"
+  // is the time report. The Header has a small tab strip to
+  // switch between them. Default is "board" so the first-run
+  // UX is unchanged from Phase 1.
+  type View = "board" | "reports";
+  const [view, setView] = useState<View>("board");
 
   // Initialize the active board once state is loaded.
   useEffect(() => {
@@ -84,6 +92,57 @@ export function App() {
       });
     }
   }, [state?.runningTimer?.cardId, state, toasts]);
+
+  // Phase 4 — listen for capture notifications from the
+  // service worker. The SW sends `{ type: "card-captured",
+  // cardId, title }` after a successful right-click
+  // "Add to Sidetrack" (D-07). We surface a toast so the
+  // user sees a confirmation without having to open the
+  // Inbox. The sidepanel may not be open when the capture
+  // happens; in that case the message is dropped silently
+  // (the OS notification handles that case; see
+  // `src/background/capture.ts`).
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    const listener = (
+      message: unknown,
+      _sender: unknown,
+      _sendResponse: (resp: unknown) => void,
+    ) => {
+      if (!message || typeof message !== "object") return;
+      const m = message as { type?: unknown; cardId?: unknown; title?: unknown };
+      if (m.type === "card-captured" && typeof m.title === "string") {
+        const cardId = typeof m.cardId === "string" ? m.cardId : "";
+        toasts.push({
+          kind: "success",
+          text: `Captured: "${m.title.length > 60 ? `${m.title.slice(0, 59)}…` : m.title}"`,
+        });
+        if (cardId) {
+          // Switch to the board that owns the new card and
+          // open its detail dialog. The user gets a
+          // single-click path from "right-click on a page"
+          // to "looking at the card in Sidetrack".
+          const ownedCard = state?.cards.find((c) => c.id === cardId);
+          const ownedColumn = ownedCard
+            ? state?.columns.find((c) => c.cardIds.includes(ownedCard.id))
+            : undefined;
+          const ownedBoard = ownedColumn
+            ? state?.boards.find((b) => b.columnIds.includes(ownedColumn.id))
+            : undefined;
+          if (ownedBoard) setActiveBoardId(ownedBoard.id);
+          if (cardId) dialogs.push({ kind: "card", cardId: cardId as CardId });
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => {
+      try {
+        chrome.runtime.onMessage.removeListener(listener);
+      } catch {
+        // ignore
+      }
+    };
+  }, [state, toasts, dialogs]);
 
   // Phase 3 — R-03 cold-start gap detection.
   //
@@ -185,7 +244,9 @@ export function App() {
       <Header
         state={state}
         activeBoardId={activeBoardId}
+        view={view}
         onSelectBoard={setActiveBoardId}
+        onSelectView={setView}
         onOpenSettings={() => dialogs.push({ kind: "settings" })}
         onImport={async (text) => {
           try {
@@ -209,27 +270,38 @@ export function App() {
         }}
       />
       {state && activeBoardId ? (
-        <Board
-          state={state}
-          boardId={activeBoardId}
-          onOpenCard={(cardId) =>
-            dialogs.push({
-              kind: "card",
-              cardId,
-            })
-          }
-          onConfirm={({ title, message, confirmLabel, danger, onConfirm }) =>
-            dialogs.push({
-              kind: "confirm",
-              title,
-              message,
-              confirmLabel,
-              danger,
-              onConfirm,
-            })
-          }
-          onError={(msg) => toasts.push({ kind: "error", text: msg })}
-        />
+        view === "board" ? (
+          <Board
+            state={state}
+            boardId={activeBoardId}
+            onOpenCard={(cardId) =>
+              dialogs.push({
+                kind: "card",
+                cardId,
+              })
+            }
+            onConfirm={({ title, message, confirmLabel, danger, onConfirm }) =>
+              dialogs.push({
+                kind: "confirm",
+                title,
+                message,
+                confirmLabel,
+                danger,
+                onConfirm,
+              })
+            }
+            onError={(msg) => toasts.push({ kind: "error", text: msg })}
+          />
+        ) : (
+          <ReportView
+            state={state}
+            onOpenCard={(cardId, boardId) => {
+              setActiveBoardId(boardId as BoardId);
+              setView("board");
+              dialogs.push({ kind: "card", cardId });
+            }}
+          />
+        )
       ) : (
         <Skeleton />
       )}
@@ -270,12 +342,14 @@ export function App() {
 function Header(props: {
   state: PersistedState | null;
   activeBoardId: BoardId | null;
+  view: "board" | "reports";
   onSelectBoard: (id: BoardId) => void;
+  onSelectView: (v: "board" | "reports") => void;
   onImport: (text: string) => void | Promise<void>;
   onExport: () => void | Promise<void>;
   onOpenSettings: () => void;
 }) {
-  const { state, activeBoardId, onSelectBoard, onImport, onExport, onOpenSettings } = props;
+  const { state, activeBoardId, view, onSelectBoard, onSelectView, onImport, onExport, onOpenSettings } = props;
   return (
     <header class="app__header" role="banner">
       <h1 class="app__title">
@@ -289,6 +363,28 @@ function Header(props: {
           PROJECT_NAME
         )}
       </h1>
+      <div class="app__view-tabs" role="tablist" aria-label="View">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "board"}
+          class={`app__view-tab${view === "board" ? " app__view-tab--active" : ""}`}
+          onClick={() => onSelectView("board")}
+          data-testid="view-tab-board"
+        >
+          Board
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "reports"}
+          class={`app__view-tab${view === "reports" ? " app__view-tab--active" : ""}`}
+          onClick={() => onSelectView("reports")}
+          data-testid="view-tab-reports"
+        >
+          Reports
+        </button>
+      </div>
       <div class="app__header-actions">
         <ImportButton onImport={onImport} />
         <ExportButton onExport={onExport} />
