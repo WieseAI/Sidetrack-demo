@@ -23,7 +23,7 @@ import { PROJECT_NAME } from "./version.js";
  * `schemaVersion` it does not understand; migrations would bring
  * older blobs forward (none needed at v1).
  */
-export const SCHEMA_VERSION = 2 as const;
+export const SCHEMA_VERSION = 3 as const;
 
 /**
  * Brand helper for IDs. The string type is enough at runtime; the
@@ -133,6 +133,51 @@ export interface PersistedState {
    * invariant; the type system lets `undefined` mean "none."
    */
   runningTimer?: RunningTimer;
+  /**
+   * A pending idle prompt, if one is waiting to be shown to the
+   * user. The service worker sets this when it detects that a
+   * running timer has crossed the idle threshold (D-08 / R-02);
+   * the sidepanel renders an `IdlePromptDialog` for it.
+   *
+   * The field is persisted so a prompt survives the sidepanel
+   * being closed (the most common case: user walks away from
+   * the computer with the sidepanel open, the SW fires the
+   * prompt while the panel is gone, the user comes back and
+   * opens the sidepanel — the prompt is still there).
+   *
+   * `kind: "open"` means the timer is still running and the
+   * user has not yet decided. `kind: "trimmed-recently"` is
+   * set right after a successful trim so a subsequent alarm
+   * tick does not re-prompt for the same gap.
+   */
+  pendingIdlePrompt?: IdlePrompt;
+}
+
+/**
+ * The shape of a pending idle prompt.
+ *
+ * `detectedAt` is when the idle detector first crossed the
+ * threshold. `idleForMs` is how long the user was idle when
+ * the prompt was set; the UI uses it in the "you've been
+ * idle for X" copy. `lastSeenActive` is the wall clock the
+ * reducer will use as the trim point if the user picks
+ * **Trim** or **Stop**.
+ */
+export interface IdlePrompt {
+  /** Which running entry this prompt is about. */
+  cardId: CardId;
+  /** The entry id of the open `TimeEntry` on that card. */
+  entryId: EntryId;
+  /** When the threshold was crossed. */
+  detectedAt: number;
+  /** `lastSeenActive` anchor at the time of detection — the trim point. */
+  lastSeenActive: number;
+  /** How long the user was idle when the prompt was set. */
+  idleForMs: number;
+  /** Whether the timer is still running (`"open"`) or whether
+   *  a recent trim means the prompt should be suppressed
+   *  (`"trimmed-recently"`). */
+  kind: "open" | "trimmed-recently";
 }
 
 /**
@@ -170,6 +215,7 @@ export function emptyState(now: number): PersistedState {
     settings: {
       idleThresholdSeconds: 5 * 60,
     },
+    pendingIdlePrompt: undefined,
   };
 }
 
@@ -207,6 +253,20 @@ export function isPersistedState(value: unknown): value is PersistedState {
     if (typeof rt.cardId !== "string") return false;
     if (typeof rt.startedAt !== "number") return false;
     if (typeof rt.lastSeenActive !== "number") return false;
+  }
+  // `pendingIdlePrompt` is optional. When present, all fields must
+  // be the right shape.
+  if (v.pendingIdlePrompt !== undefined) {
+    if (typeof v.pendingIdlePrompt !== "object" || v.pendingIdlePrompt === null) {
+      return false;
+    }
+    const ip = v.pendingIdlePrompt as Record<string, unknown>;
+    if (typeof ip.cardId !== "string") return false;
+    if (typeof ip.entryId !== "string") return false;
+    if (typeof ip.detectedAt !== "number") return false;
+    if (typeof ip.lastSeenActive !== "number") return false;
+    if (typeof ip.idleForMs !== "number") return false;
+    if (ip.kind !== "open" && ip.kind !== "trimmed-recently") return false;
   }
   return true;
 }
