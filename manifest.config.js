@@ -33,7 +33,7 @@ export default {
   side_panel: {
     default_path: "src/sidepanel/index.html",
   },
-  permissions: ["sidePanel", "storage", "alarms", "idle", "contextMenus"],
+  permissions: ["sidePanel", "storage", "alarms", "idle", "contextMenus", "notifications"],
   host_permissions: [],
   commands: {
     "open-sidepanel": {

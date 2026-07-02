@@ -37,7 +37,7 @@ describe("manifest.config.js", () => {
     // We do not request host_permissions or any permission whose
     // corresponding feature is not yet implemented. The list grows
     // as later phases light up.
-    const expected = ["sidePanel", "storage", "alarms", "idle", "contextMenus"];
+    const expected = ["sidePanel", "storage", "alarms", "idle", "contextMenus", "notifications"];
     expect(new Set(manifest.permissions ?? [])).toEqual(new Set(expected));
     expect(manifest.host_permissions ?? []).toEqual([]);
   });
