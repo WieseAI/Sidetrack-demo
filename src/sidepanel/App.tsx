@@ -12,6 +12,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { ReportView } from "./components/ReportView";
+import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
 import {
@@ -23,6 +24,7 @@ import {
 import { isPromptStale } from "../shared/idle";
 import { formatDurationLong } from "../shared/format";
 import type { BoardId, CardId, IdlePrompt, PersistedState } from "../shared/model";
+import { resolveTheme } from "../shared/theme";
 
 
 /**
@@ -239,8 +241,33 @@ export function App() {
   // For now we listen for keyboard events on the sidepanel itself;
   // the global command listener is wired up in Phase 2 when
   // start/stop-timer has user-visible behavior.
+  // Phase 5: resolve the theme override against the OS
+  // preference and apply it as a data-theme attribute on the
+  // <main> element. CSS uses [data-theme=…] selectors
+  // layered on top of prefers-color-scheme. We also subscribe
+  // to the OS-level change so the bar follows the OS while
+  // the user is on the "Follow system" override.
+  const themeOverride = state?.settings.theme ?? "system";
+  const effectiveTheme = resolveTheme(themeOverride);
+  // Force a re-render when the OS theme changes while the
+  // override is "system". The data-theme attribute is
+  // computed at render time, so we need to re-render.
+  const [, setSystemTick] = useState(0);
+  useEffect(() => {
+    if (themeOverride !== "system") return;
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => setSystemTick((n) => n + 1);
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    // Safari < 14 fallback.
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }, [themeOverride]);
   return (
-    <main class="app" aria-label={`${PROJECT_NAME} sidepanel`}>
+    <main class="app" data-theme={effectiveTheme} aria-label={`${PROJECT_NAME} sidepanel`}>
       <Header
         state={state}
         activeBoardId={activeBoardId}
@@ -248,6 +275,7 @@ export function App() {
         onSelectBoard={setActiveBoardId}
         onSelectView={setView}
         onOpenSettings={() => dialogs.push({ kind: "settings" })}
+        toasts={toasts}
         onImport={async (text) => {
           try {
             const imported = importFromJson(text);
@@ -291,6 +319,7 @@ export function App() {
               })
             }
             onError={(msg) => toasts.push({ kind: "error", text: msg })}
+            toasts={toasts}
           />
         ) : (
           <ReportView
@@ -316,8 +345,9 @@ export function App() {
       ) : null}
       {state ? <RunningTimerBar state={state} /> : null}
       <Footer />
-      <DialogRenderer state={state} dialogs={dialogs} />
+      <DialogRenderer state={state} dialogs={dialogs} toasts={toasts} />
       <Toast toasts={toasts} />
+      {state ? <OnboardingOverlay state={state} /> : null}
       <KeyboardShortcuts
         onQuickAdd={() => {
           // The quick-add input is the most recently focused
@@ -348,8 +378,9 @@ function Header(props: {
   onImport: (text: string) => void | Promise<void>;
   onExport: () => void | Promise<void>;
   onOpenSettings: () => void;
+  toasts: ReturnType<typeof useToasts>;
 }) {
-  const { state, activeBoardId, view, onSelectBoard, onSelectView, onImport, onExport, onOpenSettings } = props;
+  const { state, activeBoardId, view, onSelectBoard, onSelectView, onImport, onExport, onOpenSettings, toasts } = props;
   return (
     <header class="app__header" role="banner">
       <h1 class="app__title">
@@ -358,6 +389,7 @@ function Header(props: {
             state={state}
             activeBoardId={activeBoardId}
             onSelect={onSelectBoard}
+            toasts={toasts}
           />
         ) : (
           PROJECT_NAME
@@ -478,9 +510,11 @@ function Footer() {
 function DialogRenderer({
   state,
   dialogs,
+  toasts,
 }: {
   state: PersistedState | null;
   dialogs: ReturnType<typeof useDialogStack>;
+  toasts: ReturnType<typeof useToasts>;
 }) {
   // Render the top dialog. The dialog stack lives in `state/dialogs`
   // and is independent of the persisted state.
@@ -492,6 +526,7 @@ function DialogRenderer({
         state={state}
         cardId={top.cardId}
         onClose={() => dialogs.pop()}
+        toasts={toasts}
       />
     );
   }

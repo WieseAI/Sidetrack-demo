@@ -14,6 +14,7 @@ import type { BoardId, CardId, ColumnId } from "../../shared/model";
 import { ColumnView } from "./Column";
 import { CardView } from "./Card";
 import { useStorageHandle } from "../state/storage";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Board view: a horizontal flexbox of columns wrapped in a
@@ -40,6 +41,8 @@ export interface BoardProps {
     onConfirm: () => void;
   }) => void;
   onError: (msg: string) => void;
+  /** Phase 5: toast API for undo affordances on destructive actions. */
+  toasts: ToastApi;
 }
 
 export function Board({
@@ -48,6 +51,7 @@ export function Board({
   onOpenCard,
   onConfirm,
   onError,
+  toasts,
 }: BoardProps) {
   const board = state.boards.find((b) => b.id === boardId);
   const storage = useStorageHandle();
@@ -156,6 +160,7 @@ export function Board({
               isInbox={board.inboxColumnId === column.id}
               onOpenCard={onOpenCard}
               onConfirm={onConfirm}
+              toasts={toasts}
             />
           ))}
           <AddColumn boardId={boardId} />

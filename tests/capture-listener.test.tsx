@@ -85,6 +85,7 @@ beforeEach(() => {
   messageListener = null;
   (globalThis as unknown as { chrome: unknown }).chrome = makeFakeChrome();
   localStorage.clear();
+  localStorage.setItem('sidetrack.onboardingDismissed.v1', '1');
   setActiveStorage(createStorage(new InMemoryStorage()));
 });
 

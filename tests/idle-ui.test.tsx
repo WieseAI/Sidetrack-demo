@@ -74,6 +74,7 @@ function makeRunningState(prompt: IdlePrompt | null): PersistedState {
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('sidetrack.onboardingDismissed.v1', '1');
   setActiveStorage(createStorage(new InMemoryStorage()));
 });
 

@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import type { PersistedState, ColumnId, CardId } from "../../shared/model";
 import { useStorageHandle } from "../state/storage";
 import { CardView } from "./Card";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Column view.
@@ -34,6 +35,7 @@ export interface ColumnProps {
     danger?: boolean;
     onConfirm: () => void;
   }) => void;
+  toasts: ToastApi;
 }
 
 export function ColumnView({
@@ -42,6 +44,7 @@ export function ColumnView({
   isInbox,
   onOpenCard,
   onConfirm,
+  toasts,
 }: ColumnProps) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.name);
@@ -138,13 +141,19 @@ export function ColumnView({
             isInbox={isInbox}
             onClose={() => setMenuOpen(false)}
             onConfirm={onConfirm}
+            toasts={toasts}
           />
         ) : null}
       </header>
       <ol class="column__cards" role="list">
         {cards.map((card) => (
           <li key={card.id}>
-            <CardView card={card} state={state} onOpen={() => onOpenCard(card.id)} />
+            <CardView
+              card={card}
+              state={state}
+              onOpen={() => onOpenCard(card.id)}
+              toasts={toasts}
+            />
           </li>
         ))}
       </ol>
@@ -159,12 +168,14 @@ function ColumnMenu({
   isInbox,
   onClose,
   onConfirm,
+  toasts,
 }: {
   column: { id: ColumnId; name: string; cardIds: CardId[] };
   state: PersistedState;
   isInbox: boolean;
   onClose: () => void;
   onConfirm: ColumnProps["onConfirm"];
+  toasts: ToastApi;
 }) {
   const storage = useStorageHandle();
   const menuRef = useRef<HTMLDivElement | null>(null);

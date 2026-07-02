@@ -85,6 +85,7 @@ function seedWithSomeTrackedTime() {
 
 beforeEach(async () => {
   localStorage.clear();
+  localStorage.setItem('sidetrack.onboardingDismissed.v1', '1');
   // Make sure the test never reads the real defaultStorage singleton.
   setActiveStorage(createStorage(new InMemoryStorage()));
   // Seed by writing through the active handle.

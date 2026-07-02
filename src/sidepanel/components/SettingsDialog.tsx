@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { useStorageHandle } from "../state/storage";
 import type { PersistedState } from "../../shared/model";
+import { resolveTheme, themeLabel, type ThemeOverride } from "../../shared/theme";
 
 /**
  * Settings dialog.
@@ -30,6 +31,7 @@ export function SettingsDialog({ state, onClose }: SettingsDialogProps) {
   const [minutes, setMinutes] = useState<number>(
     Math.round(state.settings.idleThresholdSeconds / 60),
   );
+  const [theme, setTheme] = useState<ThemeOverride>(state.settings.theme);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -63,11 +65,22 @@ export function SettingsDialog({ state, onClose }: SettingsDialogProps) {
       return;
     }
     setError(null);
+    // Two writes; both are atomic reducer actions, both go
+    // through the storage serialization lock, so the order
+    // does not matter (the on-disk blob ends with both
+    // settings applied).
     await storage.mutate({
       type: "set-setting",
       key: "idleThresholdSeconds",
       value: seconds,
     });
+    if (theme !== state.settings.theme) {
+      await storage.mutate({
+        type: "set-setting",
+        key: "theme",
+        value: theme,
+      });
+    }
     onClose();
   }
 
@@ -109,6 +122,35 @@ export function SettingsDialog({ state, onClose }: SettingsDialogProps) {
             How long the timer runs without activity before
             Sidetrack asks you to keep, trim, or stop it.
             Default is {Math.round(DEFAULT_THRESHOLD_SECONDS / 60)} minutes.
+          </p>
+          <div class="settings__row settings__row--theme">
+            <span class="settings__label">Theme</span>
+            <div
+              class="settings__theme-group"
+              role="radiogroup"
+              aria-label="Theme"
+            >
+              {(["system", "light", "dark"] as const).map((opt) => (
+                <label
+                  key={opt}
+                  class={`settings__theme-option${theme === opt ? " settings__theme-option--active" : ""}`}
+                >
+                  <input
+                    type="radio"
+                    name="theme"
+                    value={opt}
+                    checked={theme === opt}
+                    onChange={() => setTheme(opt)}
+                    data-testid={`settings-theme-${opt}`}
+                  />
+                  <span>{themeLabel(opt)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <p class="settings__help">
+            Light, dark, or follow the system preference. The
+            active theme is "{themeLabel(resolveTheme(theme))}".
           </p>
           {error ? <p class="settings__error" role="alert">{error}</p> : null}
         </div>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { BoardId, PersistedState } from "../../shared/model";
 import { useStorageHandle } from "../state/storage";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Board picker.
@@ -18,9 +19,11 @@ export interface BoardPickerProps {
   state: PersistedState;
   activeBoardId: BoardId;
   onSelect: (id: BoardId) => void;
+  /** Phase 5: toast API for the "board deleted" undo affordance. */
+  toasts: ToastApi;
 }
 
-export function BoardPicker({ state, activeBoardId, onSelect }: BoardPickerProps) {
+export function BoardPicker({ state, activeBoardId, onSelect, toasts }: BoardPickerProps) {
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
@@ -133,7 +136,32 @@ export function BoardPicker({ state, activeBoardId, onSelect }: BoardPickerProps
                 <button
                   class="btn btn--danger btn--small"
                   type="button"
+                  data-testid="board-picker-confirm-delete"
                   onClick={async () => {
+                    // Phase 5: snapshot the board and all of
+                    // its columns and cards so the toast's
+                    // Undo button can re-insert them in a
+                    // single atomic write.
+                    const boardColumns = state.columns.filter(
+                      (c) => active.columnIds.includes(c.id),
+                    );
+                    const cardIds = new Set(
+                      boardColumns.flatMap((c) => c.cardIds),
+                    );
+                    const boardCards = state.cards.filter((c) =>
+                      cardIds.has(c.id),
+                    );
+                    const snapshot = {
+                      board: { ...active, columnIds: [...active.columnIds] },
+                      columns: boardColumns.map((c) => ({
+                        ...c,
+                        cardIds: [...c.cardIds],
+                      })),
+                      cards: boardCards.map((c) => ({
+                        ...c,
+                        entries: [...c.entries],
+                      })),
+                    };
                     await storage.mutate({
                       type: "delete-board",
                       boardId: active.id,
@@ -145,6 +173,22 @@ export function BoardPicker({ state, activeBoardId, onSelect }: BoardPickerProps
                     if (remaining[0]) onSelect(remaining[0].id);
                     setConfirmDelete(false);
                     setOpen(false);
+                    toasts.push({
+                      kind: "info",
+                      text: `Board "${active.name}" deleted.`,
+                      action: {
+                        label: "Undo",
+                        ariaLabel: `Undo delete board ${active.name}`,
+                        onSelect: async () => {
+                          await storage.mutate({
+                            type: "restore-board",
+                            board: snapshot.board,
+                            columns: snapshot.columns,
+                            cards: snapshot.cards,
+                          });
+                        },
+                      },
+                    });
                   }}
                 >
                   Delete
