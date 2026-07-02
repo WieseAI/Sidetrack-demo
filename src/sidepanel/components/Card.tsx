@@ -1,8 +1,10 @@
 import { useDraggable } from "@dnd-kit/core";
 import { useEffect, useRef, useState } from "preact/hooks";
 import type { Card, PersistedState } from "../../shared/model";
-import { formatDurationCompact, formatDueDate, totalTrackedMs } from "../../shared/format";
+import { formatDueDate } from "../../shared/format";
+import { isRunningOn } from "../../shared/timer";
 import { useStorageHandle } from "../state/storage";
+import { TimerButton } from "./TimerButton";
 
 /**
  * Card view.
@@ -57,7 +59,7 @@ export function CardView({ card, state, onOpen, ghost, isDragging }: CardProps) 
   }, [menu]);
 
   const dragging = isDragging || dndDragging;
-  const totalMs = totalTrackedMs(card.entries);
+  const running = isRunningOn(state, card.id);
   const due = formatDueDate(card.dueDate);
 
   function handleContextMenu(e: MouseEvent) {
@@ -82,7 +84,7 @@ export function CardView({ card, state, onOpen, ghost, isDragging }: CardProps) 
         setNodeRef(el);
         cardRef.current = el;
       }}
-      class={`card${dragging ? " card--dragging" : ""}${ghost ? " card--ghost" : ""}`}
+      class={`card${dragging ? " card--dragging" : ""}${ghost ? " card--ghost" : ""}${running ? " card--running" : ""}`}
       {...(attributes as unknown as Record<string, unknown>)}
       role="button"
       tabIndex={0}
@@ -116,9 +118,7 @@ export function CardView({ card, state, onOpen, ghost, isDragging }: CardProps) 
       </div>
       <footer class="card__meta">
         {due ? <span class="card__chip card__chip--date">📅 {due}</span> : null}
-        <span class="card__chip card__chip--time" title="Total tracked time">
-          ⏱ {formatDurationCompact(totalMs)}
-        </span>
+        <TimerButton state={state} card={card} />
         <button
           class="btn btn--icon card__menu-button"
           type="button"

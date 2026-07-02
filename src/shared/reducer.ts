@@ -78,6 +78,9 @@ export type Action =
       key: "idleThresholdSeconds";
       value: number;
     }
+  | { type: "start-timer"; cardId: CardId; now: number }
+  | { type: "stop-timer"; now: number }
+  | { type: "cold-start-reconcile"; now: number }
   | { type: "replace-state"; state: PersistedState };
 
 /** Apply an action to produce a new state. */
@@ -120,6 +123,12 @@ export function applyAction(state: PersistedState, action: Action): PersistedSta
         ...state,
         settings: { ...state.settings, [action.key]: action.value },
       };
+    case "start-timer":
+      return startTimer(state, action.cardId, action.now);
+    case "stop-timer":
+      return stopTimer(state, action.now);
+    case "cold-start-reconcile":
+      return coldStartReconcile(state, action.now);
     case "replace-state":
       return action.state;
   }
@@ -417,4 +426,139 @@ function withInserted<T>(arr: readonly T[], item: T, index: number): T[] {
   const next = [...arr];
   next.splice(Math.max(0, Math.min(index, next.length)), 0, item);
   return next;
+}
+
+// ---- timer helpers ----------------------------------------------------
+
+/**
+ * Start a timer on the given card.
+ *
+ * Single-active-timer rule (brief AC #4): if a timer is already
+ * running, this closes it first by appending a final `TimeEntry`
+ * to its card with `endAt = now` and `source = "timer"`, then
+ * starts a new open entry on the target card. The reducer is
+ * the only place the running-timer block is written.
+ *
+ * Starting a timer on the same card that is already running is
+ * a no-op (idempotent): we just refresh `lastSeenActive`.
+ */
+function startTimer(
+  state: PersistedState,
+  cardId: CardId,
+  now: number,
+): PersistedState {
+  // If the same card is already running, refresh the anchor and
+  // return. We don't want to double-count or close-then-reopen.
+  if (state.runningTimer && state.runningTimer.cardId === cardId) {
+    if (state.runningTimer.lastSeenActive === now) return state;
+    return {
+      ...state,
+      runningTimer: { ...state.runningTimer, lastSeenActive: now },
+      lastSeenActive: now,
+    };
+  }
+  let next: PersistedState = state;
+  // Close any other running timer first.
+  if (next.runningTimer) {
+    next = closeRunningEntry(next, now);
+  }
+  // Find the target card. If it's been deleted under us, refuse.
+  const card = next.cards.find((c) => c.id === cardId);
+  if (!card) return next;
+  const openEntry: TimeEntry = {
+    id: makeEntryId(),
+    cardId,
+    startAt: now,
+    endAt: null,
+    source: "timer",
+  };
+  return {
+    ...next,
+    cards: next.cards.map((c) =>
+      c.id === cardId ? { ...c, entries: [...c.entries, openEntry] } : c,
+    ),
+    runningTimer: { cardId, startedAt: now, lastSeenActive: now },
+    lastSeenActive: now,
+  };
+}
+
+/**
+ * Stop the currently running timer, closing its open entry. If
+ * no timer is running, this is a no-op. The `now` argument is
+ * taken from the caller (not `Date.now()`) so the reducer stays
+ * pure and the service worker can reconcile on cold start with
+ * a wall-clock value it has measured itself.
+ */
+function stopTimer(state: PersistedState, now: number): PersistedState {
+  if (!state.runningTimer) return state;
+  return {
+    ...closeRunningEntry(state, now),
+    lastSeenActive: now,
+  };
+}
+
+/**
+ * Internal: close the currently running timer's open `TimeEntry`
+ * by setting `endAt = now` and clearing the `runningTimer` block.
+ * The reducer is the only writer of the running block, so the
+ * invariant "exactly one running timer or none" is enforced here.
+ *
+ * If the card has been deleted while the timer was running, we
+ * still close the entry (writing the entry update is a no-op
+ * because the card is gone) and clear the running block. This
+ * can happen if the user deletes a card from another window
+ * while a timer is running on it; the orphaned running block
+ * must not survive the next cold start.
+ */
+function closeRunningEntry(state: PersistedState, now: number): PersistedState {
+  const rt = state.runningTimer;
+  if (!rt) return state;
+  return {
+    ...state,
+    cards: state.cards.map((c) => {
+      if (c.id !== rt.cardId) return c;
+      // The open entry is the one with `endAt === null` and a
+      // matching startAt. There should be exactly one.
+      let touched = false;
+      const entries = c.entries.map((e) => {
+        if (touched) return e;
+        if (e.endAt !== null) return e;
+        if (e.startAt !== rt.startedAt) return e;
+        touched = true;
+        return { ...e, endAt: now };
+      });
+      return { ...c, entries };
+    }),
+    runningTimer: undefined,
+  };
+}
+
+/**
+ * Cold-start reconciliation.
+ *
+ * Called by the service worker on startup (and on every alarm
+ * tick). If a running timer exists, we just refresh the
+ * `lastSeenActive` anchor on it; we never stop it here — that
+ * decision belongs to the user-facing prompt in Phase 3, which
+ * is the only place that can read the user's intent about a
+ * long gap.
+ *
+ * If the running timer points at a card that no longer exists,
+ * we silently clear it (it would be impossible for the user to
+ * resolve).
+ */
+function coldStartReconcile(
+  state: PersistedState,
+  now: number,
+): PersistedState {
+  if (!state.runningTimer) return state;
+  const card = state.cards.find((c) => c.id === state.runningTimer!.cardId);
+  if (!card) {
+    return { ...state, runningTimer: undefined };
+  }
+  return {
+    ...state,
+    runningTimer: { ...state.runningTimer, lastSeenActive: now },
+    lastSeenActive: now,
+  };
 }

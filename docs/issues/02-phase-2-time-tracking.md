@@ -56,17 +56,21 @@ and ship the timer UI in the sidepanel.
 
 ## Acceptance criteria
 
-- [ ] Brief AC #3 passes: start a timer, quit Chrome entirely, wait,
+- [x] Brief AC #3 passes: start a timer, quit Chrome entirely, wait,
       reopen — elapsed time is correct to the minute.
-- [ ] Brief AC #4 passes: start timer on card A, then on card B — A
+- [x] Brief AC #4 passes: start timer on card A, then on card B — A
       stops automatically and the user is informed.
-- [ ] Closing and reopening the sidepanel does not change elapsed time.
-- [ ] Manually editing an entry's start/end and saving reflects
+- [x] Closing and reopening the sidepanel does not change elapsed time.
+- [x] Manually editing an entry's start/end and saving reflects
       immediately in the card's total.
-- [ ] The automated timer-survival test from Phase 0 is green in CI
+- [x] The automated timer-survival test from Phase 0 is green in CI
       (or a documented local harness if CI is not yet wired up).
-- [ ] `docs/reports/phase-2.md` exists and includes the test output
+- [x] `docs/reports/phase-2.md` exists and includes the test output
       and a brief retro of anything that surprised us.
+
+**Phase 2 — done.** See
+[`docs/reports/phase-2.md`](../reports/phase-2.md) for the
+full retro and test evidence.
 
 ## Dependencies
 

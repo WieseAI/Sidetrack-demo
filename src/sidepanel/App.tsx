@@ -1,4 +1,4 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { PROJECT_NAME, VERSION } from "../shared/version";
 import { usePersistedState, useStorageHandle as useStorageHandleLocal } from "./state/storage";
 import { exportToJson, defaultExportFilename, importFromJson } from "../shared/io";
@@ -6,11 +6,12 @@ import { Board } from "./components/Board";
 import { BoardPicker } from "./components/BoardPicker";
 import { CardDialog } from "./components/CardDialog";
 import { ConfirmDialog } from "./components/ConfirmDialog";
+import { RunningTimerBar } from "./components/RunningTimerBar";
 import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
-import type { BoardId, PersistedState } from "../shared/model";
+import type { BoardId, CardId, PersistedState } from "../shared/model";
 
 
 /**
@@ -52,6 +53,27 @@ export function App() {
   useEffect(() => {
     if (activeBoardId) writeRememberedBoard(activeBoardId);
   }, [activeBoardId]);
+
+  // Brief AC #4: when starting a timer on a new card automatically
+  // stops the previous one, inform the user. We detect the swap
+  // by watching the running timer's cardId and pushing a toast
+  // if it changes to a non-null value AND the previous one was
+  // also non-null. The reducer is the only writer; the toasts
+  // are visual only.
+  const prevTimerCardRef = useRef<CardId | null>(null);
+  useEffect(() => {
+    if (!state) return;
+    const current = state.runningTimer?.cardId ?? null;
+    const prev = prevTimerCardRef.current;
+    prevTimerCardRef.current = current;
+    if (current && prev && current !== prev) {
+      const prevCard = state.cards.find((c) => c.id === prev);
+      toasts.push({
+        kind: "info",
+        text: `Timer stopped on "${prevCard?.title ?? "previous card"}"`,
+      });
+    }
+  }, [state?.runningTimer?.cardId, state, toasts]);
 
   // Global keyboard shortcuts (Alt+Shift+A quick-add, etc.). The
   // D-17 chords are the manifest's `commands`, which the service
@@ -111,6 +133,7 @@ export function App() {
       ) : (
         <Skeleton />
       )}
+      {state ? <RunningTimerBar state={state} /> : null}
       <Footer />
       <DialogRenderer state={state} dialogs={dialogs} />
       <Toast toasts={toasts} />
