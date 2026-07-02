@@ -89,6 +89,7 @@ export function CardView({ card, state, onOpen, ghost, isDragging, toasts }: Car
       }}
       class={`card${dragging ? " card--dragging" : ""}${ghost ? " card--ghost" : ""}${running ? " card--running" : ""}`}
       {...(attributes as unknown as Record<string, unknown>)}
+      {...listeners}
       role="button"
       tabIndex={0}
       aria-label={`Card: ${card.title}`}
@@ -105,13 +106,23 @@ export function CardView({ card, state, onOpen, ghost, isDragging, toasts }: Car
         onOpen?.();
       }}
       onKeyDown={(e) => {
+        // dnd-kit's KeyboardSensor registers an onKeyDown on
+        // the draggable node; we spread it before our handler
+        // so we can decide what to do based on whether dnd-kit
+        // already activated a drag. If dnd-kit handled the
+        // event (it called preventDefault and started a
+        // drag), do nothing — the drag and our activation
+        // would fight. Otherwise, Enter or Space on a
+        // focused card opens the dialog.
+        const dndListener = (listeners as unknown as { onKeyDown?: (e: KeyboardEvent) => void }).onKeyDown;
+        if (dndListener) dndListener(e);
+        if (e.defaultPrevented) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onOpen?.();
         }
       }}
       onContextMenu={handleContextMenu}
-      {...listeners}
     >
       <div class="card__body">
         <h3 class="card__title">{card.title}</h3>

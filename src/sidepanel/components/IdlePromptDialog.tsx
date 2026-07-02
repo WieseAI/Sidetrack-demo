@@ -200,6 +200,7 @@ export function IdlePromptDialog({
             class="btn btn--ghost"
             type="button"
             data-testid="idle-choice-keep"
+            aria-keyshortcuts="1"
             onClick={() => {
               if (busy.current) return;
               busy.current = true;
