@@ -38,15 +38,10 @@ first commit onward.
 
 ## Acceptance criteria
 
-- [ ] `LICENSE` exists at the repo root and is the MIT license text.
-- [ ] `.gitignore` covers `dist/`, `node_modules/`, `.DS_Store`,
-      `*.log`, common editor swapfiles.
-- [ ] `git log --stat` shows no committed `dist/`, `node_modules/`,
-      or any file matching common secret patterns
-      (`*.pem`, `*.key`, `id_rsa`, `secrets.*`, `*.env`).
-- [ ] No outbound network calls in the runtime code
-      (`grep -R "fetch(" src/` returns no hits except ones we add
-      deliberately in later phases and document).
+- [x] `LICENSE` exists at the repo root and is the MIT license text. **Verified**: `LICENSE` at repo root begins with "MIT License" and contains the standard MIT text. Copyright line: `Copyright (c) 2024-2026 Sidetrack contributors` (rationale documented in `docs/reports/phase-0.md` → "Public-repo hygiene → LICENSE copyright style").
+- [x] `.gitignore` covers `dist/`, `node_modules/`, `.DS_Store`, `*.log`, common editor swapfiles. **Verified**: `.gitignore` lines 2, 9, 17, 21 cover `node_modules/`, `.DS_Store`, `*.swp` / `*.swo`, `*.log`. `dist/` on line 9. Bonus: `.env*`, `*.pem`, `*.key`, `secrets.*`, `id_*` are also ignored as defense in depth.
+- [x] `git log --stat` shows no committed `dist/`, `node_modules/`, or any file matching common secret patterns. **Verified**: `git log --all --diff-filter=A --name-only -- 'dist/' 'node_modules/' '*.pem' '*.key' 'id_rsa*' 'secrets.*' '.env*'` returns no rows. Repo is clean.
+- [x] No outbound network calls in the runtime code. **Verified**: `grep -rE "fetch\(|XMLHttpRequest|axios|navigator\.send|http\.get|https?://|wss?://" src/` returns no hits. Runtime is `src/background/*` + `src/sidepanel/*` + `src/shared/*`. Confirmed in Phase 5 self-review (AC #7).
 
 ## Dependencies
 

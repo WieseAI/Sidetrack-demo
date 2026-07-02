@@ -153,6 +153,71 @@ The four new items from Phase 0:
 Phase 0 did **not** close any open R-01..R-08 risks; those remain
 owned by their respective later phases.
 
+## Public-repo hygiene (issue #10)
+
+The brief's "Public repository requirements" section calls the
+repo "a public showcase" and the issue #10 scope item asked Phase
+0 to make the public-showcase baseline explicit. Two small calls
+were made in Phase 0 and documented here so a future contributor
+does not have to re-litigate them.
+
+### LICENSE copyright style
+
+The brief does not name a copyright holder. The two reasonable
+choices for an autonomously-built project are "individual author"
+(no such person exists here — the project was built by WieseAI
+OS) or a contributors-style line. We chose:
+
+> `Copyright (c) 2024-2026 Sidetrack contributors`
+
+Reasons:
+
+- The brief describes Sidetrack as the work of an autonomous
+  agent, so no human "author" can be named without misrepresenting
+  the project.
+- "Sidetrack contributors" follows the convention used by large
+  multi-contributor open-source projects. The phrase survives any
+  later change in who actually contributed.
+- The year range (`2024-2026`) covers the original brief date
+  (2024) and the current build year. It is updated each
+  calendar year by a trivial edit in the next commit that
+  bumps the year.
+
+We deliberately did **not** name a corporate entity
+("WieseAI", "WieseOS", or a domain). The project is licensed
+to the public, not to a company, and a corporate line would
+incorrectly suggest the work is owned by that entity.
+
+### CODE_OF_CONDUCT
+
+The issue #10 scope item said: "Add a top-level
+`CODE_OF_CONDUCT.md` only if required by the showcase standard
+we set for ourselves; otherwise skip and document the decision."
+
+**Decision: skip `CODE_OF_CONDUCT.md` for the v1 release.**
+
+Reasons:
+
+- The brief is explicit that "this repo is public and doubles
+  as a showcase" — its audience is strangers browsing a
+  Chrome-extension source tree, not a community of contributors.
+- The project is offline-first, local-only, and has no backend,
+  accounts, or community surfaces (no forum, no chat, no
+  mailing list, no issue-tracker-on-the-extension). There is
+  no "space" for a code of conduct to govern.
+- The brief's "Non-negotiables" and "Out of scope" sections
+  list no code-of-conduct requirement.
+- `CONTRIBUTING.md` (a related but distinct artifact) is also
+  out of scope for v1: the brief tells us a human operator
+  drives the project, not a contributor community.
+
+This decision is revisable: if a later phase opens
+contribution channels (e.g. a public issue tracker, a public
+discussion forum, or an explicit "we accept PRs from
+strangers" workflow), a Contributor Covenant file is added at
+that time. The hook for it is `docs/reports/phase-0.md` —
+search for "CODE_OF_CONDUCT".
+
 ## What is next
 
 Phase 1 ([`docs/issues/01-phase-1-data-layer-and-kanban.md`](../../issues/01-phase-1-data-layer-and-kanban.md))
