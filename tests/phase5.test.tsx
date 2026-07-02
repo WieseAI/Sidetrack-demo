@@ -186,6 +186,41 @@ describe("Phase 5 — live region for state changes", () => {
   });
 });
 
+
+
+describe("Phase 5 — column-delete undo", () => {
+  it("exposes a restore-column reducer action", async () => {
+    // The reducer's restore-column is the wire side of the
+    // toast's Undo button. We exercise it directly so a
+    // future refactor of the column-delete path cannot
+    // regress the restore silently.
+    const { defaultState } = await import("../src/shared/seed");
+    const { applyAction } = await import("../src/shared/reducer");
+    const s0 = defaultState(Date.now());
+    // Pick a non-Inbox column so the delete is allowed.
+    const col = s0.columns.find((c) => c.id !== s0.boards[0]!.inboxColumnId)!;
+    // Add a card to the column.
+    const s1 = applyAction(s0, {
+      type: "create-card",
+      columnId: col.id,
+      title: "Test",
+    });
+    const card = s1.cards[s1.cards.length - 1]!;
+    // Delete the column.
+    const s2 = applyAction(s1, { type: "delete-column", columnId: col.id });
+    expect(s2.columns.find((c) => c.id === col.id)).toBeUndefined();
+    // Restore the column.
+    const s3 = applyAction(s2, {
+      type: "restore-column",
+      boardId: s2.boards[0]!.id,
+      column: { ...col, cardIds: [card.id] },
+      cards: [card],
+    });
+    expect(s3.columns.find((c) => c.id === col.id)).toBeDefined();
+    expect(s3.cards.find((c) => c.id === card.id)).toBeDefined();
+  });
+});
+
 describe("Phase 5 — airplane mode (no network) is preserved", () => {
   it("the sidepanel boots with no fetch() / no XHR in the bundled JS", async () => {
     // The brief AC #7 is "airplane mode: every prior AC
