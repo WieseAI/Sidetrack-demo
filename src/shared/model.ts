@@ -23,7 +23,7 @@ import { PROJECT_NAME } from "./version.js";
  * `schemaVersion` it does not understand; migrations would bring
  * older blobs forward (none needed at v1).
  */
-export const SCHEMA_VERSION = 3 as const;
+export const SCHEMA_VERSION = 4 as const;
 
 /**
  * Brand helper for IDs. The string type is enough at runtime; the

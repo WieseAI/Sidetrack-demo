@@ -10,7 +10,7 @@
  * same serialized write path.
  */
 
-import type { CardId, IdlePrompt } from "./model.js";
+import type { CardId, CardSource, ColumnId, IdlePrompt } from "./model.js";
 import type { StorageHandle } from "./storage.js";
 
 /** Start a timer on `cardId`. If another timer is already
@@ -82,6 +82,42 @@ export async function trimTimerAndStop(
   now: number = Date.now(),
 ): Promise<void> {
   await storage.mutate({ type: "trim-timer-and-stop", trimTo, now });
+}
+
+/**
+ * Phase 4 — capture a card from the right-click "Add to
+ * Sidetrack" flow (D-07). The caller passes the destination
+ * column id, the title, an optional description, and an
+ * optional `source` provenance blob. The reducer is the
+ * only writer of the card (D-06); this is plumbing.
+ *
+ * Returns the new card's id so the service worker can
+ * surface a toast / OS notification with a "view card"
+ * affordance.
+ */
+export async function captureCard(
+  storage: StorageHandle,
+  columnId: ColumnId,
+  title: string,
+  description?: string,
+  source?: CardSource,
+): Promise<CardId> {
+  const next = await storage.mutate({
+    type: "capture-card",
+    columnId,
+    title,
+    description,
+    source,
+  });
+  // The reducer is a no-op for an empty title or an
+  // unknown column, so the new card may not be present.
+  // In that case we return a sentinel id; the caller
+  // surfaces a generic toast.
+  const created = next.cards[next.cards.length - 1];
+  if (created && created.title.trim() === title.trim()) {
+    return created.id;
+  }
+  return "" as CardId;
 }
 
 /**
