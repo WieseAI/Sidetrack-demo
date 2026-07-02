@@ -18,6 +18,7 @@ import type {
   BoardId,
   Card,
   CardId,
+  CardSource,
   Column,
   ColumnId,
   EntryId,
@@ -46,6 +47,25 @@ export type Action =
   | { type: "delete-column"; columnId: ColumnId }
   | { type: "reorder-columns"; boardId: BoardId; columnIds: ColumnId[] }
   | { type: "create-card"; columnId: ColumnId; title: string }
+  | {
+      /**
+       * Phase 4 — right-click "Add to Sidetrack" capture.
+       *
+       * Creates a card in the given column with the optional
+       * `description` and the optional `source` provenance
+       * (`{ url, title, selection?, capturedAt }`). The
+       * service worker issues this from `chrome.contextMenus`
+       * onClicked; the sidepanel issues it when (in the
+       * future) a paste/quick-share flow lands. The reducer
+       * is the only writer (D-06); the capture message
+       * channel is just plumbing.
+       */
+      type: "capture-card";
+      columnId: ColumnId;
+      title: string;
+      description?: string;
+      source?: CardSource;
+    }
   | {
       type: "update-card";
       cardId: CardId;
@@ -146,6 +166,14 @@ export function applyAction(state: PersistedState, action: Action): PersistedSta
       return reorderColumns(state, action.boardId, action.columnIds);
     case "create-card":
       return createCard(state, action.columnId, action.title);
+    case "capture-card":
+      return captureCard(
+        state,
+        action.columnId,
+        action.title,
+        action.description,
+        action.source,
+      );
     case "update-card":
       return updateCard(state, action.cardId, action.patch);
     case "delete-card":
@@ -327,6 +355,78 @@ function createCard(
     columns: state.columns.map((c) =>
       c.id === columnId ? { ...c, cardIds: [...c.cardIds, card.id] } : c,
     ),
+  };
+}
+
+/**
+ * Phase 4 — capture a card from the right-click "Add to
+ * Sidetrack" flow (D-07). Same shape as `createCard` but
+ * accepts an optional `description` and a `source` provenance
+ * blob. The service worker calls this from
+ * `chrome.contextMenus` onClicked; the sidepanel can call it
+ * too (e.g. a future paste-to-inbox flow).
+ *
+ * Title is trimmed; an empty title is a no-op (same as
+ * `createCard`). The `source.url` is validated to be a
+ * non-empty string when provided; malformed source blobs are
+ * dropped (we still create the card, just without the source).
+ */
+function captureCard(
+  state: PersistedState,
+  columnId: ColumnId,
+  title: string,
+  description?: string,
+  source?: CardSource,
+): PersistedState {
+  const trimmed = title.trim();
+  if (!trimmed) return state;
+  const column = state.columns.find((c) => c.id === columnId);
+  if (!column) return state;
+  const now = Date.now();
+  const card: Card = {
+    id: makeCardId(),
+    title: trimmed,
+    description: description?.trim() || undefined,
+    entries: [],
+    createdAt: now,
+    updatedAt: now,
+    source: sanitizeSource(source),
+  };
+  return {
+    ...state,
+    cards: [...state.cards, card],
+    columns: state.columns.map((c) =>
+      c.id === columnId ? { ...c, cardIds: [...c.cardIds, card.id] } : c,
+    ),
+  };
+}
+
+/**
+ * Defensive: drop a malformed `source` blob rather than
+ * persist garbage. The service worker builds these from
+ * `chrome.contextMenus` and the page's `Info` object, but
+ * arbitrary contextMenu payloads from older Chrome versions
+ * or future extensions should not corrupt the persisted state.
+ */
+function sanitizeSource(source: CardSource | undefined): CardSource | undefined {
+  if (!source) return undefined;
+  if (typeof source.url !== "string" || source.url.length === 0) {
+    return undefined;
+  }
+  if (typeof source.title !== "string") {
+    return undefined;
+  }
+  if (typeof source.capturedAt !== "number") {
+    return undefined;
+  }
+  return {
+    url: source.url,
+    title: source.title,
+    selection:
+      typeof source.selection === "string" && source.selection.length > 0
+        ? source.selection
+        : undefined,
+    capturedAt: source.capturedAt,
   };
 }
 

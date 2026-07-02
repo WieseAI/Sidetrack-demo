@@ -32,6 +32,7 @@ import {
   clearIdleNotification,
   ensureIdleAlarm,
 } from "./idle";
+import { bindContextMenuClicks, ensureContextMenus } from "./capture";
 
 const SIDEPANEL_TOGGLE_BEHAVIOR = {
   // Open, don't toggle, on the active tab. We do not call setOptions
@@ -63,6 +64,11 @@ chrome.action.onClicked.addListener(async (tab) => {
 chrome.runtime.onInstalled.addListener(() => {
   console.info("[sidetrack] installed");
   void reconcileOnStartup();
+  // Phase 4: register the right-click "Add to Sidetrack"
+  // context menu items (D-07). The installer is the
+  // natural time to do this so the menu is available
+  // before the user opens the sidepanel.
+  void ensureContextMenus();
 });
 
 chrome.runtime.onStartup?.addListener(() => {
@@ -79,6 +85,12 @@ ensureIdleAlarm();
 bindIdleAlarm();
 bindSystemIdle();
 bindNotificationClick();
+
+// Phase 4 wiring: right-click "Add to Sidetrack" context
+// menu (D-07). The click handler is bound at module load
+// so the menu is live as soon as the SW starts; the menu
+// items themselves are created in `onInstalled` (above).
+bindContextMenuClicks();
 
 // Sidepanel can ask us to clear the OS notification once
 // the user has acknowledged the prompt in-sidepanel. The
