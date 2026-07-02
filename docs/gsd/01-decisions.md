@@ -327,11 +327,89 @@ already supports a separate `mac` block per `chrome.commands` spec.
 **Locked:** 2026-07-01, Phase 0 spike (WieseOS Agent). Re-evaluable in
 Phase 5.
 
+## D-18 — Right-click capture: dual surface (in-sidepanel toast + OS notification)
+
+**Decision:** The right-click "Add to Sidetrack" capture flow
+emits **two** confirmations: a sidepanel `toast` (when the
+sidepanel is open) and a `chrome.notifications` tray cue
+(when it is not). The SW always fires the notification so
+the user has a tray cue; the sidepanel additionally surfaces
+a toast if it is open and listening.
+
+**Rationale:** The brief's "Add to Sidetrack" should "land
+somewhere obvious." A user with the sidepanel open sees the
+toast and can click it to jump to the card; a user with the
+sidepanel closed sees the tray cue and can click it to open
+the sidepanel routed to the new card. The two surfaces are
+not redundant — they cover the two states the sidepanel can
+be in. The SW cannot know which state the sidepanel is in
+without an async ping, and we do not want to block the
+capture on that.
+
+**Implications:**
+
+- The capture is async from the SW's perspective but
+  synchronous from the user's: the card is in storage by
+  the time the menu close animation finishes.
+- The OS notification is a deep link back into the
+  sidepanel; clicking it opens the sidepanel on the right
+  tab and surfaces the card detail dialog.
+- The two surfaces are independent — a user with
+  notifications disabled still gets the in-sidepanel
+  toast; a user with the sidepanel closed still gets
+  the tray cue.
+
+**Locked:** 2026-07-02, Phase 4 (WieseOS Agent).
+
+## D-19 — Reports: list-with-bar, Monday-start week, local time
+
+**Decision:** The Phase 4 report view renders a per-task
+**list with a thin CSS bar** (a "list or simple chart" per
+the brief), with a "By board" rollup above it. "This week"
+is Monday-to-next-Monday. Both ranges are computed in the
+user's local time zone, not UTC.
+
+**Rationale:** A list with a bar is the minimal thing that
+meets the brief's "clear list or simple chart" *and* the
+"clicking a row jumps to that card" requirements. A pie or
+donut chart would need a separate clickable overlay, and a
+sidepanel-narrow column is not where pie charts shine.
+Monday-start is the ISO week; the brief doesn't specify.
+Local time is what the user means by "today" — a user in
+UTC-08 who opens "Today" at 23:30 local time expects
+*today*, not the UTC day that has already rolled over.
+
+**Implications:**
+
+- The aggregation is a pure function `computeReport(state,
+  range, now)` in `src/shared/reports.ts`. It is total over
+  the persisted state; no incremental caching. With
+  hundreds of cards and thousands of entries the pass is
+  sub-millisecond on a developer machine.
+- An open (running) entry contributes the portion of its
+  duration that falls inside the range. This means a card
+  that has been running for 6 hours and the user opens
+  "Today" at 14:00 only sees the 14:00 contribution.
+- The `rangeBounds` helper is the only place that depends
+  on the week-start choice. A future "Settings: week
+  starts on…" preference is a one-line change.
+- No chart library is added; the bars are plain CSS
+  `width: <share>%`. The brief's "no external services at
+  runtime" rule covers this in spirit.
+
+**Locked:** 2026-07-02, Phase 4 (WieseOS Agent).
+
 ## Decision log
 
 | Date | Locked | Decided by |
 | ---- | ------ | ---------- |
 | 2026-07-01 | D-13 (Preact) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-14 (`@dnd-kit/core`) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-15 (alarm + idle defaults) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-16 (in-sidepanel prompt) | Phase 0 spike, WieseOS Agent |
+| 2026-07-01 | D-17 (default chords) | Phase 0 spike, WieseOS Agent |
+| 2026-07-02 | D-18 (capture dual surface) | Phase 4, WieseOS Agent |
+| 2026-07-02 | D-19 (reports list+bar, local time, Monday week) | Phase 4, WieseOS Agent |
 | 2026-07-01 | D-14 (`@dnd-kit/core`) | Phase 0 spike, WieseOS Agent |
 | 2026-07-01 | D-15 (alarm + idle defaults) | Phase 0 spike, WieseOS Agent |
 | 2026-07-01 | D-16 (in-sidepanel prompt) | Phase 0 spike, WieseOS Agent |
