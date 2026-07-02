@@ -18,7 +18,7 @@
   --color-surface-2: #fafafa;
   --color-text: #18181b;
   --color-text-muted: #71717a;
-  --color-text-subtle: #a1a1aa;
+  --color-text-subtle: #71717a;
   --color-border: #e4e4e7;
   --color-border-strong: #d4d4d8;
   --color-accent: #6366f1;
@@ -74,7 +74,7 @@
     --color-surface-2: #1f1f23;
     --color-text: #fafafa;
     --color-text-muted: #a1a1aa;
-    --color-text-subtle: #71717a;
+    --color-text-subtle: #a1a1aa;
     --color-border: #27272a;
     --color-border-strong: #3f3f46;
     --color-accent: #818cf8;
@@ -100,7 +100,7 @@
   --color-surface-2: #1f1f23;
   --color-text: #fafafa;
   --color-text-muted: #a1a1aa;
-  --color-text-subtle: #71717a;
+  --color-text-subtle: #a1a1aa;
   --color-border: #27272a;
   --color-border-strong: #3f3f46;
   --color-accent: #818cf8;
@@ -2042,4 +2042,19 @@ kbd {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   padding: 1px 5px;
+}
+
+/* --- Phase 5: defensive :focus-visible rules per interactive control --
+ * The global :focus-visible rule above covers most elements; these
+ * per-class rules are belt-and-braces so a future refactor cannot
+ * silently drop the focus ring on a named class. */
+.board-picker__button:focus-visible,
+.column__name-button:focus-visible,
+.column__menu-button:focus-visible,
+.card__menu-button:focus-visible,
+.card:focus-visible,
+.card__timer-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }

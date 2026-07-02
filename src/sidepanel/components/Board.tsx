@@ -66,7 +66,18 @@ export function Board({
   // events on cards (which open the detail dialog) still work.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor, {
+      // Use Space to start a card drag; Enter is reserved for
+      // the card-level 'open dialog' action. The global
+      // window-level handleKeyDown in dnd-kit still ends the
+      // drag on Enter once a drag is in progress, so the
+      // experience is consistent.
+      keyboardCodes: {
+        start: ["Space"],
+        cancel: ["Escape"],
+        end: ["Space", "Enter", "Tab"],
+      },
+    }),
   );
 
   // We track which column each card currently lives in so the
