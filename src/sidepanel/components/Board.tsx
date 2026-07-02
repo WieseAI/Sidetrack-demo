@@ -14,6 +14,8 @@ import type { BoardId, CardId, ColumnId } from "../../shared/model";
 import { ColumnView } from "./Column";
 import { CardView } from "./Card";
 import { useStorageHandle } from "../state/storage";
+import type { ToastApi } from "../state/toasts";
+import { announce } from "./LiveAnnouncer";
 
 /**
  * Board view: a horizontal flexbox of columns wrapped in a
@@ -40,6 +42,8 @@ export interface BoardProps {
     onConfirm: () => void;
   }) => void;
   onError: (msg: string) => void;
+  /** Phase 5: toast API for undo affordances on destructive actions. */
+  toasts: ToastApi;
 }
 
 export function Board({
@@ -48,6 +52,7 @@ export function Board({
   onOpenCard,
   onConfirm,
   onError,
+  toasts,
 }: BoardProps) {
   const board = state.boards.find((b) => b.id === boardId);
   const storage = useStorageHandle();
@@ -91,13 +96,20 @@ export function Board({
 
   function onDragStart(event: DragStartEvent) {
     const id = event.active.id;
-    if (typeof id === "string") setActiveCardId(id as CardId);
+    if (typeof id === "string") {
+      setActiveCardId(id as CardId);
+      const card = state.cards.find((c) => c.id === id);
+      if (card) announce(`Picked up card ${card.title}.`);
+    }
   }
 
   async function onDragEnd(event: DragEndEvent) {
     setActiveCardId(null);
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      announce("Drag cancelled.");
+      return;
+    }
     const cardId = active.id as CardId;
     const overId = over.id as string;
 
@@ -130,6 +142,11 @@ export function Board({
         toColumnId,
         toIndex,
       });
+      const destCol = state.columns.find((c) => c.id === toColumnId);
+      const card = state.cards.find((c) => c.id === cardId);
+      if (destCol && card) {
+        announce(`Moved ${card.title} to ${destCol.name}.`);
+      }
     } catch (err) {
       onError((err as Error).message);
     }
@@ -156,13 +173,14 @@ export function Board({
               isInbox={board.inboxColumnId === column.id}
               onOpenCard={onOpenCard}
               onConfirm={onConfirm}
+              toasts={toasts}
             />
           ))}
           <AddColumn boardId={boardId} />
         </div>
       </section>
       <DragOverlay>
-        {activeCard ? <CardView card={activeCard} state={state} ghost /> : null}
+        {activeCard ? <CardView card={activeCard} state={state} ghost toasts={toasts} /> : null}
       </DragOverlay>
     </DndContext>
   );

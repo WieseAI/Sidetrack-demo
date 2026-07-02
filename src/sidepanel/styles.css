@@ -58,8 +58,17 @@
   --shadow-lg: 0 12px 32px var(--color-shadow-strong);
 }
 
+/* Dark theme tokens. The selectors are layered so:
+ *   - When the user picks "Follow system" (or has not picked
+ *     anything), prefers-color-scheme drives the look.
+ *   - When the user explicitly picks "dark", the
+ *     [data-theme="dark"] attribute on <main> drives it.
+ * The two rule sets declare the same variable values, so a
+ * user on the dark override stays dark even if the OS
+ * switches to light.
+ */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg: #09090b;
     --color-surface: #18181b;
     --color-surface-2: #1f1f23;
@@ -83,6 +92,31 @@
     --color-shadow: rgba(0, 0, 0, 0.3);
     --color-shadow-strong: rgba(0, 0, 0, 0.5);
   }
+}
+
+[data-theme="dark"] {
+  --color-bg: #09090b;
+  --color-surface: #18181b;
+  --color-surface-2: #1f1f23;
+  --color-text: #fafafa;
+  --color-text-muted: #a1a1aa;
+  --color-text-subtle: #71717a;
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+  --color-accent: #818cf8;
+  --color-accent-fg: #18181b;
+  --color-accent-soft: rgba(129, 140, 248, 0.12);
+  --color-danger: #f87171;
+  --color-danger-fg: #18181b;
+  --color-success: #4ade80;
+  --color-warn: #facc15;
+  --color-kbd-bg: #27272a;
+  --color-kbd-border: #3f3f46;
+  --color-focus: #818cf8;
+  --color-overlay: rgba(0, 0, 0, 0.6);
+  --color-drag-over: rgba(129, 140, 248, 0.18);
+  --color-shadow: rgba(0, 0, 0, 0.3);
+  --color-shadow-strong: rgba(0, 0, 0, 0.5);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -842,6 +876,9 @@ body {
 }
 
 .toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   background: var(--color-surface);
   color: var(--color-text);
   border: 1px solid var(--color-border);
@@ -850,8 +887,39 @@ body {
   font-size: 13px;
   box-shadow: var(--shadow-md);
   pointer-events: auto;
-  cursor: pointer;
   animation: toast-in 150ms ease-out;
+}
+
+.toast__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  cursor: pointer;
+  word-break: break-word;
+}
+
+.toast__action {
+  flex: 0 0 auto;
+  appearance: none;
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  color: var(--color-accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 100ms, color 100ms;
+}
+
+.toast__action:hover {
+  background: var(--color-accent);
+  color: var(--color-accent-fg);
+}
+
+.toast__action:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
 }
 
 .toast--success {
@@ -1354,6 +1422,65 @@ kbd {
   color: var(--color-danger);
 }
 
+/* Theme selector (Phase 5): three radio buttons styled as a
+ * segmented control. The active option uses the accent color
+ * so the user can see the current pick at a glance. */
+.settings__row--theme {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.settings__theme-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  align-self: flex-end;
+}
+
+.settings__theme-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings__theme-option input {
+  /* Hide the native radio; the label is the visible target. */
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.settings__theme-option--active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.settings__theme-option:hover:not(.settings__theme-option--active) {
+  color: var(--color-text);
+}
+
+.settings__theme-option:focus-within {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 1px;
+}
+
 
 /* View tabs (Board / Reports) in the header. */
 .app__view-tabs {
@@ -1688,4 +1815,231 @@ kbd {
   .report__board-bar {
     display: none;
   }
+}
+
+
+/* --- Phase 5 onboarding overlay ----------------------------------- */
+
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: var(--color-overlay);
+  pointer-events: auto;
+}
+
+.onboarding__panel {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.onboarding__title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.onboarding__lede {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.onboarding__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  counter-reset: onboarding;
+}
+
+.onboarding__step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.onboarding__step strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 2px;
+}
+
+.onboarding__step p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.onboarding__step p kbd {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+.onboarding__step-kbd {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.onboarding__step-kbd kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--color-text);
+  background: var(--color-kbd-bg);
+  border: 1px solid var(--color-kbd-border);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+.onboarding__step-kbd span {
+  color: var(--color-text-subtle);
+  font-size: 11px;
+}
+
+.onboarding__step-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 22px;
+  background: var(--color-kbd-bg);
+  border: 1px solid var(--color-kbd-border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-text);
+}
+
+.onboarding__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.onboarding__hint kbd {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+.onboarding__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding {
+    /* No animations in the overlay; respect the global rule. */
+  }
+}
+
+
+/* --- Phase 5: keyboard shortcuts help dialog ---------------------- */
+
+.dialog--shortcuts {
+  max-width: 520px;
+}
+
+.shortcuts__list {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.shortcuts__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shortcuts__group-title {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.shortcuts__group dl {
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.shortcuts__row {
+  display: grid;
+  grid-template-columns: minmax(140px, auto) 1fr;
+  gap: var(--space-3);
+  align-items: center;
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.shortcuts__row dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  margin: 0;
+}
+
+.shortcuts__row dt span {
+  color: var(--color-text-subtle);
+  font-size: 12px;
+}
+
+.shortcuts__row dd {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.shortcuts__note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.shortcuts__note code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 1px 5px;
 }

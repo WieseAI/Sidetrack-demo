@@ -21,6 +21,11 @@ import { useStorageHandle } from "../state/storage";
 export interface KeyboardShortcutsProps {
   onQuickAdd: () => void;
   onOpenSettings?: () => void;
+  onOpenShortcutsHelp?: () => void;
+  /** Optional: called when a global "toggle-timer" chord
+   *  arrives. The component does not know which card is
+   *  focused; the parent picks and dispatches. */
+  onToggleTimer?: () => void;
 }
 
 const TOUCH_THROTTLE_MS = 5_000;
@@ -39,7 +44,12 @@ function touchActive(storage: ReturnType<typeof useStorageHandle>) {
   });
 }
 
-export function KeyboardShortcuts({ onQuickAdd, onOpenSettings }: KeyboardShortcutsProps) {
+export function KeyboardShortcuts({
+  onQuickAdd,
+  onOpenSettings,
+  onOpenShortcutsHelp,
+  onToggleTimer,
+}: KeyboardShortcutsProps) {
   const storage = useStorageHandle();
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -56,18 +66,17 @@ export function KeyboardShortcuts({ onQuickAdd, onOpenSettings }: KeyboardShortc
         if (e.key === "A" || e.key === "a") {
           e.preventDefault();
           onQuickAdd();
-        }
-        if ((e.key === "S" || e.key === "s") && onOpenSettings) {
+        } else if ((e.key === "S" || e.key === "s") && onOpenSettings) {
           e.preventDefault();
           onOpenSettings();
+        } else if ((e.key === "T" || e.key === "t") && onToggleTimer) {
+          e.preventDefault();
+          onToggleTimer();
         }
       }
-      if (e.key === "?" && e.shiftKey) {
-        // Phase 5 will render a real help dialog. For now,
-        // we surface the keyboard hint toast.
+      if (e.key === "?" && e.shiftKey && onOpenShortcutsHelp) {
         e.preventDefault();
-        // The toast is wired by the parent; we keep the
-        // chord as a no-op for Phase 3.
+        onOpenShortcutsHelp();
       }
     }
     function onPointer() {
@@ -79,6 +88,6 @@ export function KeyboardShortcuts({ onQuickAdd, onOpenSettings }: KeyboardShortc
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [onQuickAdd, onOpenSettings, storage]);
+  }, [onQuickAdd, onOpenSettings, onOpenShortcutsHelp, onToggleTimer, storage]);
   return null;
 }

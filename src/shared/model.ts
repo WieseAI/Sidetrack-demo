@@ -23,7 +23,7 @@ import { PROJECT_NAME } from "./version.js";
  * `schemaVersion` it does not understand; migrations would bring
  * older blobs forward (none needed at v1).
  */
-export const SCHEMA_VERSION = 4 as const;
+export const SCHEMA_VERSION = 5 as const;
 
 /**
  * Brand helper for IDs. The string type is enough at runtime; the
@@ -126,6 +126,13 @@ export interface PersistedState {
   settings: {
     /** Seconds of no input before the idle prompt fires. */
     idleThresholdSeconds: number;
+    /**
+     * Theme override. "system" follows the OS preference
+     * (the default). "light" forces the light theme;
+     * "dark" forces the dark theme. The reducer treats any
+     * unknown value as "system" so old blobs load cleanly.
+     */
+    theme: "system" | "light" | "dark";
   };
   /**
    * Exactly one running timer, or `undefined` if nothing is
@@ -214,6 +221,7 @@ export function emptyState(now: number): PersistedState {
     lastSeenActive: now,
     settings: {
       idleThresholdSeconds: 5 * 60,
+      theme: "system",
     },
     pendingIdlePrompt: undefined,
   };
@@ -241,6 +249,13 @@ export function isPersistedState(value: unknown): value is PersistedState {
   if (typeof v.settings !== "object" || v.settings === null) return false;
   const s = v.settings as Record<string, unknown>;
   if (typeof s.idleThresholdSeconds !== "number") return false;
+  // `theme` is optional in the validator so blobs that pre-date
+  // the manual theme override still validate. The reducer
+  // defaults the value to "system" at load time when it is
+  // missing (see `storage.ts`).
+  if (s.theme !== undefined && s.theme !== "system" && s.theme !== "light" && s.theme !== "dark") {
+    return false;
+  }
   // `runningTimer` is optional. When present, it must be a fully
   // shaped RunningTimer (cardId, startedAt, lastSeenActive are
   // numbers/strings). A malformed entry here would corrupt the

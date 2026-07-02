@@ -12,7 +12,7 @@
  * The empty-state UI surfaces this string (D-12). Phase 5 injects a
  * build-time version when we cut a release.
  */
-export const VERSION = "0.0.0";
+export const VERSION = "0.1.0";
 
 /** Human-readable project name. Used in the empty state (D-12). */
 export const PROJECT_NAME = "Sidetrack";

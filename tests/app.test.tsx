@@ -36,6 +36,7 @@ import { setActiveStorage } from "../src/sidepanel/state/storage";
 
 beforeEach(() => {
   localStorage.clear();
+  localStorage.setItem('sidetrack.onboardingDismissed.v1', '1');
   setActiveStorage(createStorage(new InMemoryStorage()));
 });
 

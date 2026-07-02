@@ -12,6 +12,9 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { Toast } from "./components/Toast";
 import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { ReportView } from "./components/ReportView";
+import { OnboardingOverlay } from "./components/OnboardingOverlay";
+import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
+import { announce, LiveAnnouncer } from "./components/LiveAnnouncer";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
 import {
@@ -23,6 +26,7 @@ import {
 import { isPromptStale } from "../shared/idle";
 import { formatDurationLong } from "../shared/format";
 import type { BoardId, CardId, IdlePrompt, PersistedState } from "../shared/model";
+import { resolveTheme } from "../shared/theme";
 
 
 /**
@@ -77,7 +81,8 @@ export function App() {
   // by watching the running timer's cardId and pushing a toast
   // if it changes to a non-null value AND the previous one was
   // also non-null. The reducer is the only writer; the toasts
-  // are visual only.
+  // are visual only. The same event is also announced to the
+  // ARIA live region (Phase 5 a11y pass).
   const prevTimerCardRef = useRef<CardId | null>(null);
   useEffect(() => {
     if (!state) return;
@@ -90,6 +95,17 @@ export function App() {
         kind: "info",
         text: `Timer stopped on "${prevCard?.title ?? "previous card"}"`,
       });
+      announce(
+        `Timer stopped on ${prevCard?.title ?? "previous card"}. Timer started on ${
+          state.cards.find((c) => c.id === current)?.title ?? "new card"
+        }.`,
+      );
+    } else if (current && !prev) {
+      const startedCard = state.cards.find((c) => c.id === current);
+      announce(`Timer started on ${startedCard?.title ?? "card"}.`);
+    } else if (!current && prev) {
+      const stoppedCard = state.cards.find((c) => c.id === prev);
+      announce(`Timer stopped on ${stoppedCard?.title ?? "card"}.`);
     }
   }, [state?.runningTimer?.cardId, state, toasts]);
 
@@ -143,6 +159,63 @@ export function App() {
       }
     };
   }, [state, toasts, dialogs]);
+
+  // Phase 5 — listen for the global chrome.commands relayed
+  // by the service worker. The SW sends { type: "command",
+  // command: "open-sidepanel" | "quick-add" | "toggle-timer" }
+  // and the sidepanel dispatches the right action. The
+  // sidepanel may not be open when the chord is pressed; in
+  // that case the SW opens the sidepanel for "open-sidepanel"
+  // and drops the others.
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return;
+    const listener = (
+      message: unknown,
+    ) => {
+      if (!message || typeof message !== "object") return;
+      const m = message as { type?: unknown; command?: unknown };
+      if (m.type !== "command" || typeof m.command !== "string") return;
+      if (m.command === "quick-add") {
+        const target = document.querySelector<HTMLInputElement>(
+          "[data-quickadd-input]",
+        );
+        if (target) {
+          target.focus();
+          target.select();
+        }
+      } else if (m.command === "toggle-timer") {
+        if (state?.runningTimer) {
+          void useStorageHandleLocal()
+            .mutate({ type: "stop-timer", now: Date.now() })
+            .catch(() => undefined);
+        } else if (state && activeBoardId) {
+          const board = state.boards.find((b) => b.id === activeBoardId);
+          const firstColumnId = board?.columnIds[0];
+          const column = firstColumnId
+            ? state.columns.find((c) => c.id === firstColumnId)
+            : undefined;
+          const firstCardId = column?.cardIds[0];
+          if (firstCardId) {
+            void useStorageHandleLocal()
+              .mutate({
+                type: "start-timer",
+                cardId: firstCardId,
+                now: Date.now(),
+              })
+              .catch(() => undefined);
+          }
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(listener);
+    return () => {
+      try {
+        chrome.runtime.onMessage.removeListener(listener);
+      } catch {
+        // ignore
+      }
+    };
+  }, [state, activeBoardId]);
 
   // Phase 3 — R-03 cold-start gap detection.
   //
@@ -239,8 +312,33 @@ export function App() {
   // For now we listen for keyboard events on the sidepanel itself;
   // the global command listener is wired up in Phase 2 when
   // start/stop-timer has user-visible behavior.
+  // Phase 5: resolve the theme override against the OS
+  // preference and apply it as a data-theme attribute on the
+  // <main> element. CSS uses [data-theme=…] selectors
+  // layered on top of prefers-color-scheme. We also subscribe
+  // to the OS-level change so the bar follows the OS while
+  // the user is on the "Follow system" override.
+  const themeOverride = state?.settings.theme ?? "system";
+  const effectiveTheme = resolveTheme(themeOverride);
+  // Force a re-render when the OS theme changes while the
+  // override is "system". The data-theme attribute is
+  // computed at render time, so we need to re-render.
+  const [, setSystemTick] = useState(0);
+  useEffect(() => {
+    if (themeOverride !== "system") return;
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const handler = () => setSystemTick((n) => n + 1);
+    if (typeof mq.addEventListener === "function") {
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+    // Safari < 14 fallback.
+    mq.addListener(handler);
+    return () => mq.removeListener(handler);
+  }, [themeOverride]);
   return (
-    <main class="app" aria-label={`${PROJECT_NAME} sidepanel`}>
+    <main class="app" data-theme={effectiveTheme} aria-label={`${PROJECT_NAME} sidepanel`}>
       <Header
         state={state}
         activeBoardId={activeBoardId}
@@ -248,6 +346,7 @@ export function App() {
         onSelectBoard={setActiveBoardId}
         onSelectView={setView}
         onOpenSettings={() => dialogs.push({ kind: "settings" })}
+        toasts={toasts}
         onImport={async (text) => {
           try {
             const imported = importFromJson(text);
@@ -291,6 +390,7 @@ export function App() {
               })
             }
             onError={(msg) => toasts.push({ kind: "error", text: msg })}
+            toasts={toasts}
           />
         ) : (
           <ReportView
@@ -316,8 +416,10 @@ export function App() {
       ) : null}
       {state ? <RunningTimerBar state={state} /> : null}
       <Footer />
-      <DialogRenderer state={state} dialogs={dialogs} />
+      <DialogRenderer state={state} dialogs={dialogs} toasts={toasts} />
       <Toast toasts={toasts} />
+      {state ? <OnboardingOverlay state={state} /> : null}
+      <LiveAnnouncer />
       <KeyboardShortcuts
         onQuickAdd={() => {
           // The quick-add input is the most recently focused
@@ -334,6 +436,33 @@ export function App() {
           }
         }}
         onOpenSettings={() => dialogs.push({ kind: "settings" })}
+        onOpenShortcutsHelp={() => dialogs.push({ kind: "shortcuts" })}
+        onToggleTimer={() => {
+          // Phase 5 — global "toggle timer" chord. The
+          // sidepanel does not track which card is "focused"
+          // (the kanban is one big grid), so the most useful
+          // behaviour is: if a timer is running, stop it; if
+          // not, start one on the first card in the active
+          // board. This is the same behaviour the brief
+          // describes for the global Alt+Shift+T shortcut.
+          if (state?.runningTimer) {
+            void useStorageHandleLocal()
+              .mutate({ type: "stop-timer", now: Date.now() })
+              .catch(() => undefined);
+          } else if (state && activeBoardId) {
+            const board = state.boards.find((b) => b.id === activeBoardId);
+            if (!board) return;
+            const firstColumnId = board.columnIds[0];
+            if (!firstColumnId) return;
+            const column = state.columns.find((c) => c.id === firstColumnId);
+            if (!column) return;
+            const firstCardId = column.cardIds[0];
+            if (!firstCardId) return;
+            void useStorageHandleLocal()
+              .mutate({ type: "start-timer", cardId: firstCardId, now: Date.now() })
+              .catch(() => undefined);
+          }
+        }}
       />
     </main>
   );
@@ -348,8 +477,9 @@ function Header(props: {
   onImport: (text: string) => void | Promise<void>;
   onExport: () => void | Promise<void>;
   onOpenSettings: () => void;
+  toasts: ReturnType<typeof useToasts>;
 }) {
-  const { state, activeBoardId, view, onSelectBoard, onSelectView, onImport, onExport, onOpenSettings } = props;
+  const { state, activeBoardId, view, onSelectBoard, onSelectView, onImport, onExport, onOpenSettings, toasts } = props;
   return (
     <header class="app__header" role="banner">
       <h1 class="app__title">
@@ -358,6 +488,7 @@ function Header(props: {
             state={state}
             activeBoardId={activeBoardId}
             onSelect={onSelectBoard}
+            toasts={toasts}
           />
         ) : (
           PROJECT_NAME
@@ -478,9 +609,11 @@ function Footer() {
 function DialogRenderer({
   state,
   dialogs,
+  toasts,
 }: {
   state: PersistedState | null;
   dialogs: ReturnType<typeof useDialogStack>;
+  toasts: ReturnType<typeof useToasts>;
 }) {
   // Render the top dialog. The dialog stack lives in `state/dialogs`
   // and is independent of the persisted state.
@@ -492,6 +625,7 @@ function DialogRenderer({
         state={state}
         cardId={top.cardId}
         onClose={() => dialogs.pop()}
+        toasts={toasts}
       />
     );
   }
@@ -514,6 +648,9 @@ function DialogRenderer({
     return (
       <SettingsDialog state={state} onClose={() => dialogs.pop()} />
     );
+  }
+  if (top.kind === "shortcuts") {
+    return <KeyboardShortcutsHelp onClose={() => dialogs.pop()} />;
   }
   return null;
 }

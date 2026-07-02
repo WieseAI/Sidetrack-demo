@@ -3,6 +3,7 @@ import { useDroppable } from "@dnd-kit/core";
 import type { PersistedState, ColumnId, CardId } from "../../shared/model";
 import { useStorageHandle } from "../state/storage";
 import { CardView } from "./Card";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Column view.
@@ -34,6 +35,7 @@ export interface ColumnProps {
     danger?: boolean;
     onConfirm: () => void;
   }) => void;
+  toasts: ToastApi;
 }
 
 export function ColumnView({
@@ -42,6 +44,7 @@ export function ColumnView({
   isInbox,
   onOpenCard,
   onConfirm,
+  toasts,
 }: ColumnProps) {
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(column.name);
@@ -138,13 +141,19 @@ export function ColumnView({
             isInbox={isInbox}
             onClose={() => setMenuOpen(false)}
             onConfirm={onConfirm}
+            toasts={toasts}
           />
         ) : null}
       </header>
       <ol class="column__cards" role="list">
         {cards.map((card) => (
           <li key={card.id}>
-            <CardView card={card} state={state} onOpen={() => onOpenCard(card.id)} />
+            <CardView
+              card={card}
+              state={state}
+              onOpen={() => onOpenCard(card.id)}
+              toasts={toasts}
+            />
           </li>
         ))}
       </ol>
@@ -159,15 +168,19 @@ function ColumnMenu({
   isInbox,
   onClose,
   onConfirm,
+  toasts,
 }: {
   column: { id: ColumnId; name: string; cardIds: CardId[] };
   state: PersistedState;
   isInbox: boolean;
   onClose: () => void;
   onConfirm: ColumnProps["onConfirm"];
+  toasts: ToastApi;
 }) {
   const storage = useStorageHandle();
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // toasts is consumed by the column-delete undo affordance
+  // below; the reference here is intentional.
 
   useEffect(() => {
     function handle(e: MouseEvent) {
@@ -221,10 +234,44 @@ function ColumnMenu({
             confirmLabel: "Delete column",
             danger: true,
             onConfirm: () => {
+              // Phase 5: snapshot the column and its cards
+              // so the toast's Undo button can re-insert
+              // them. The owning board is whichever board
+              // currently lists this column in columnIds.
+              const cardIds = new Set(column.cardIds);
+              const columnCards = state.cards
+                .filter((c) => cardIds.has(c.id))
+                .map((c) => ({ ...c, entries: [...c.entries] }));
+              const owningBoard = state.boards.find((b) =>
+                b.columnIds.includes(column.id),
+              );
+              const snapshot = {
+                boardId: owningBoard?.id,
+                column: { ...column, cardIds: [...column.cardIds] },
+                cards: columnCards,
+              };
               void storage.mutate({
                 type: "delete-column",
                 columnId: column.id,
               });
+              if (snapshot.boardId) {
+                toasts.push({
+                  kind: "info",
+                  text: `Column "${column.name}" deleted.`,
+                  action: {
+                    label: "Undo",
+                    ariaLabel: `Undo delete column ${column.name}`,
+                    onSelect: async () => {
+                      await storage.mutate({
+                        type: "restore-column",
+                        boardId: snapshot.boardId!,
+                        column: snapshot.column,
+                        cards: snapshot.cards,
+                      });
+                    },
+                  },
+                });
+              }
             },
           });
         }}

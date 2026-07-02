@@ -4,6 +4,7 @@ import { useStorageHandle } from "../state/storage";
 import { useTickingNow } from "../state/tick";
 import { formatDurationLong } from "../../shared/format";
 import { isRunningOn } from "../../shared/timer";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Card detail dialog.
@@ -26,9 +27,11 @@ export interface CardDialogProps {
   state: PersistedState;
   cardId: CardId;
   onClose: () => void;
+  /** Phase 5: toast API for the "entry deleted" undo affordance. */
+  toasts: ToastApi;
 }
 
-export function CardDialog({ state, cardId, onClose }: CardDialogProps) {
+export function CardDialog({ state, cardId, onClose, toasts }: CardDialogProps) {
   const card = state.cards.find((c) => c.id === cardId);
   const storage = useStorageHandle();
   const dialogRef = useRef<HTMLDivElement | null>(null);
@@ -174,7 +177,7 @@ export function CardDialog({ state, cardId, onClose }: CardDialogProps) {
             onEditEntry={setEditingEntryId}
             onCloseEdit={() => setEditingEntryId(null)}
             onAddManual={() => void addManualEntry()}
-          />
+           toasts={toasts} />
           <footer class="dialog__footer">
             <button
               class="btn btn--ghost"
@@ -218,8 +221,9 @@ function TimeEntries(props: {
   onEditEntry: (id: EntryId | null) => void;
   onCloseEdit: () => void;
   onAddManual: () => void;
+  toasts: ToastApi;
 }) {
-  const { card, state, editingEntryId, onEditEntry, onCloseEdit, onAddManual } =
+  const { card, state, editingEntryId, onEditEntry, onCloseEdit, onAddManual, toasts } =
     props;
   const storage = useStorageHandle();
   const now = useTickingNow();
@@ -274,10 +278,28 @@ function TimeEntries(props: {
             onEdit={() => onEditEntry(e.id)}
             onClose={onCloseEdit}
             onDelete={async () => {
+              // Phase 5: snapshot the entry so the toast's
+              // Undo button can re-append it.
+              const snapshot = { ...e };
               await storage.mutate({
                 type: "delete-entry",
                 cardId: card.id,
                 entryId: e.id,
+              });
+              toasts.push({
+                kind: "info",
+                text: "Time entry deleted.",
+                action: {
+                  label: "Undo",
+                  ariaLabel: "Undo delete time entry",
+                  onSelect: async () => {
+                    await storage.mutate({
+                      type: "restore-entry",
+                      cardId: card.id,
+                      entry: snapshot,
+                    });
+                  },
+                },
               });
             }}
             onSave={async (patch) => {

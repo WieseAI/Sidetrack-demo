@@ -22,9 +22,9 @@ import { defaultState } from "../src/shared/seed";
  * end-to-end test.
  */
 
-let messageListener:
-  | ((m: unknown, _s: unknown, cb: (r: unknown) => void) => void)
-  | null = null;
+let messageListeners: Array<
+  (m: unknown, _s: unknown, cb: (r: unknown) => void) => void
+> = [];
 
 function makeFakeChrome() {
   return {
@@ -48,7 +48,7 @@ function makeFakeChrome() {
               resp: (r: unknown) => void,
             ) => void,
           ) => {
-            messageListener = cb;
+            messageListeners.push(cb);
           },
         ),
         removeListener: vi.fn(),
@@ -82,9 +82,10 @@ function makeFakeChrome() {
 }
 
 beforeEach(() => {
-  messageListener = null;
+  messageListeners = [];
   (globalThis as unknown as { chrome: unknown }).chrome = makeFakeChrome();
   localStorage.clear();
+  localStorage.setItem('sidetrack.onboardingDismissed.v1', '1');
   setActiveStorage(createStorage(new InMemoryStorage()));
 });
 
@@ -111,7 +112,7 @@ describe("App — card-captured message handler", () => {
   it("captures a new card in the Inbox column and persists it", async () => {
     const handle = await seedDefaultAndRender();
     // Simulate the SW message after a context-menu capture.
-    expect(messageListener).toBeTruthy();
+    expect(messageListeners.length).toBeGreaterThan(0);
     const inboxId = (await handle.exportState()).boards[0]!.inboxColumnId!;
     await handle.mutate({
       type: "capture-card",
@@ -133,7 +134,7 @@ describe("App — card-captured message handler", () => {
 
   it("listens for `card-captured` messages and surfaces a toast", async () => {
     const handle = await seedDefaultAndRender();
-    expect(messageListener).toBeTruthy();
+    expect(messageListeners.length).toBeGreaterThan(0);
     // Find the new card's id by triggering a capture through
     // the reducer (rather than reaching into the storage
     // internals).
@@ -148,7 +149,7 @@ describe("App — card-captured message handler", () => {
     const newCard = after.cards[after.cards.length - 1]!;
     expect(after.cards.length).toBe(before + 1);
     // Now dispatch the message the SW would send.
-    messageListener!({ type: "card-captured", cardId: newCard.id, title: "Page Title Goes Here" }, {}, () => undefined);
+    messageListeners.forEach((cb) => cb({ type: "card-captured", cardId: newCard.id, title: "Page Title Goes Here" }, {}, () => undefined));
     await waitFor(() => {
       const toasts = document.querySelectorAll(".toast");
       const texts = Array.from(toasts).map((t) => t.textContent ?? "");
@@ -178,7 +179,7 @@ describe("App — card-captured message handler", () => {
       );
       expect(titles).toContain("Click me");
     });
-    messageListener!({ type: "card-captured", cardId: newCard.id, title: "Click me" }, {}, () => undefined);
+    messageListeners.forEach((cb) => cb({ type: "card-captured", cardId: newCard.id, title: "Click me" }, {}, () => undefined));
     await waitFor(() => {
       // The card detail dialog opens with the title field
       // pre-filled.

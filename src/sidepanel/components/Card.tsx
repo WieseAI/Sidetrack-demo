@@ -5,6 +5,7 @@ import { formatDueDate } from "../../shared/format";
 import { isRunningOn } from "../../shared/timer";
 import { useStorageHandle } from "../state/storage";
 import { TimerButton } from "./TimerButton";
+import type { ToastApi } from "../state/toasts";
 
 /**
  * Card view.
@@ -30,9 +31,11 @@ export interface CardProps {
   /** When true, the card is being dragged; we render a cursor and
    *  disable interactions. */
   isDragging?: boolean;
+  /** Phase 5: toast API for the "card deleted" undo affordance. */
+  toasts: ToastApi;
 }
 
-export function CardView({ card, state, onOpen, ghost, isDragging }: CardProps) {
+export function CardView({ card, state, onOpen, ghost, isDragging, toasts }: CardProps) {
   // dnd-kit injects `role="button"` and `tabIndex={0}` into the
   // draggable's `attributes`. We let it — its defaults are exactly
   // what we want — and just spread them into the underlying div.
@@ -145,6 +148,7 @@ export function CardView({ card, state, onOpen, ghost, isDragging }: CardProps) 
           position={menu}
           onClose={() => setMenu(null)}
           onMove={moveToColumn}
+          toasts={toasts}
         />
       ) : null}
     </div>
@@ -157,12 +161,14 @@ function CardMenu({
   position,
   onClose,
   onMove,
+  toasts,
 }: {
   state: PersistedState;
   card: Card;
   position: { x: number; y: number };
   onClose: () => void;
   onMove: (columnId: string) => void;
+  toasts: ToastApi;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const storage = useStorageHandle();
@@ -196,8 +202,38 @@ function CardMenu({
           class="menu__item menu__item--danger"
           type="button"
           role="menuitem"
+          data-testid="card-menu-confirm-delete"
           onClick={async () => {
+            // Phase 5: snapshot the card + its source column /
+            // index before the delete so the toast's Undo
+            // button can re-insert it in the right place.
+            const sourceColumn = state.columns.find((c) =>
+              c.cardIds.includes(card.id),
+            );
+            const snapshot = {
+              card: { ...card, entries: [...card.entries] },
+              columnId: sourceColumn?.id ?? state.columns[0]!.id,
+              index: sourceColumn
+                ? sourceColumn.cardIds.indexOf(card.id)
+                : 0,
+            };
             await storage.mutate({ type: "delete-card", cardId: card.id });
+            toasts.push({
+              kind: "info",
+              text: `Card "${card.title}" deleted.`,
+              action: {
+                label: "Undo",
+                ariaLabel: `Undo delete card ${card.title}`,
+                onSelect: async () => {
+                  await storage.mutate({
+                    type: "restore-card",
+                    card: snapshot.card,
+                    columnId: snapshot.columnId as never,
+                    index: snapshot.index,
+                  });
+                },
+              },
+            });
             onClose();
           }}
         >
