@@ -15,6 +15,7 @@ import { ColumnView } from "./Column";
 import { CardView } from "./Card";
 import { useStorageHandle } from "../state/storage";
 import type { ToastApi } from "../state/toasts";
+import { announce } from "./LiveAnnouncer";
 
 /**
  * Board view: a horizontal flexbox of columns wrapped in a
@@ -95,13 +96,20 @@ export function Board({
 
   function onDragStart(event: DragStartEvent) {
     const id = event.active.id;
-    if (typeof id === "string") setActiveCardId(id as CardId);
+    if (typeof id === "string") {
+      setActiveCardId(id as CardId);
+      const card = state.cards.find((c) => c.id === id);
+      if (card) announce(`Picked up card ${card.title}.`);
+    }
   }
 
   async function onDragEnd(event: DragEndEvent) {
     setActiveCardId(null);
     const { active, over } = event;
-    if (!over) return;
+    if (!over) {
+      announce("Drag cancelled.");
+      return;
+    }
     const cardId = active.id as CardId;
     const overId = over.id as string;
 
@@ -134,6 +142,11 @@ export function Board({
         toColumnId,
         toIndex,
       });
+      const destCol = state.columns.find((c) => c.id === toColumnId);
+      const card = state.cards.find((c) => c.id === cardId);
+      if (destCol && card) {
+        announce(`Moved ${card.title} to ${destCol.name}.`);
+      }
     } catch (err) {
       onError((err as Error).message);
     }

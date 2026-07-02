@@ -14,6 +14,7 @@ import { KeyboardShortcuts } from "./components/KeyboardShortcuts";
 import { ReportView } from "./components/ReportView";
 import { OnboardingOverlay } from "./components/OnboardingOverlay";
 import { KeyboardShortcutsHelp } from "./components/KeyboardShortcutsHelp";
+import { announce, LiveAnnouncer } from "./components/LiveAnnouncer";
 import { useToasts } from "./state/toasts";
 import { useDialogStack } from "./state/dialogs";
 import {
@@ -80,7 +81,8 @@ export function App() {
   // by watching the running timer's cardId and pushing a toast
   // if it changes to a non-null value AND the previous one was
   // also non-null. The reducer is the only writer; the toasts
-  // are visual only.
+  // are visual only. The same event is also announced to the
+  // ARIA live region (Phase 5 a11y pass).
   const prevTimerCardRef = useRef<CardId | null>(null);
   useEffect(() => {
     if (!state) return;
@@ -93,6 +95,17 @@ export function App() {
         kind: "info",
         text: `Timer stopped on "${prevCard?.title ?? "previous card"}"`,
       });
+      announce(
+        `Timer stopped on ${prevCard?.title ?? "previous card"}. Timer started on ${
+          state.cards.find((c) => c.id === current)?.title ?? "new card"
+        }.`,
+      );
+    } else if (current && !prev) {
+      const startedCard = state.cards.find((c) => c.id === current);
+      announce(`Timer started on ${startedCard?.title ?? "card"}.`);
+    } else if (!current && prev) {
+      const stoppedCard = state.cards.find((c) => c.id === prev);
+      announce(`Timer stopped on ${stoppedCard?.title ?? "card"}.`);
     }
   }, [state?.runningTimer?.cardId, state, toasts]);
 
@@ -406,6 +419,7 @@ export function App() {
       <DialogRenderer state={state} dialogs={dialogs} toasts={toasts} />
       <Toast toasts={toasts} />
       {state ? <OnboardingOverlay state={state} /> : null}
+      <LiveAnnouncer />
       <KeyboardShortcuts
         onQuickAdd={() => {
           // The quick-add input is the most recently focused
