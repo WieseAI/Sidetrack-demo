@@ -1,23 +1,30 @@
 /// <reference types="chrome" />
 /**
- * Phase 0 service worker.
+ * MV3 service worker.
  *
- * Responsibilities in this phase (per the Phase 0 issue):
- *   - Open the side panel when the user clicks the toolbar action.
- *   - Register the (D-17) `chrome.commands` shortcuts. The actions they
- *     trigger are no-ops in Phase 0; Phase 1/2 wire them up to the
- *     kanban and timer.
+ * Responsibilities:
+ *   - Open the side panel when the user clicks the toolbar action
+ *     (Phase 0, D-02).
+ *   - Log the (D-17) `chrome.commands` chords; the actions they
+ *     trigger are dispatched in Phase 5 (R-11).
+ *   - Own the timer-reconciliation alarm (Phase 2, D-15) and the
+ *     message channel the sidepanel uses to start / stop the timer
+ *     without touching `chrome.storage` directly (D-06).
  *
- * In later phases this module will:
- *   - Own the `mutate(fn)` helper (D-06) that serializes writes.
- *   - Register the periodic `chrome.alarms` tick (D-15) for the
- *     timer-anchor reconciliation.
- *   - Wire `chrome.idle` (D-08) for the system-level idle signal.
- *
- * The service worker is MV3 (D-01): it is started on events, runs to
- * idle, and can be killed at any time. All state that must survive
- * a kill lives in `chrome.storage` (D-05), not in module memory.
+ * The service worker is MV3 (D-01): it is started on events, runs
+ * to idle, and can be killed at any time. All state that must
+ * survive a kill lives in `chrome.storage` (D-05), not in module
+ * memory. The running-timer invariant is owned by the reducer in
+ * `src/shared/reducer.ts`; the SW here is just the alarm + the
+ * message bus.
  */
+
+import {
+  bindTimerAlarm,
+  bindTimerMessages,
+  ensureTimerAlarm,
+  reconcileOnStartup,
+} from "./timer";
 
 const SIDEPANEL_TOGGLE_BEHAVIOR = {
   // Open, don't toggle, on the active tab. We do not call setOptions
@@ -47,10 +54,18 @@ chrome.action.onClicked.addListener(async (tab) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  // Phase 0 only logs the install. Phase 4 will register the
-  // "Add to Sidetrack" context menu here (D-07).
   console.info("[sidetrack] installed");
+  void reconcileOnStartup();
 });
+
+chrome.runtime.onStartup?.addListener(() => {
+  void reconcileOnStartup();
+});
+
+// Phase 2 wiring: timer alarm + sidepanel message bus.
+ensureTimerAlarm();
+bindTimerAlarm();
+bindTimerMessages();
 
 chrome.commands?.onCommand.addListener((command) => {
   // The commands are declared in manifest.config.js (D-17) and become

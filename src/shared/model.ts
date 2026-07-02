@@ -23,7 +23,7 @@ import { PROJECT_NAME } from "./version.js";
  * `schemaVersion` it does not understand; migrations would bring
  * older blobs forward (none needed at v1).
  */
-export const SCHEMA_VERSION = 1 as const;
+export const SCHEMA_VERSION = 2 as const;
 
 /**
  * Brand helper for IDs. The string type is enough at runtime; the
@@ -127,6 +127,35 @@ export interface PersistedState {
     /** Seconds of no input before the idle prompt fires. */
     idleThresholdSeconds: number;
   };
+  /**
+   * Exactly one running timer, or `undefined` if nothing is
+   * running. The reducer enforces the single-active-timer
+   * invariant; the type system lets `undefined` mean "none."
+   */
+  runningTimer?: RunningTimer;
+}
+
+/**
+ * The "currently running" timer.
+ *
+ * Exactly one of these exists at a time (or none). It is persisted
+ * on the root so it survives a service-worker kill, a sidepanel
+ * close, or a full browser restart (D-04, R-03). The elapsed time
+ * is never stored — it is always recomputed from `startedAt`, the
+ * wall clock, and the `lastSeenActive` reconciliation anchor.
+ */
+export interface RunningTimer {
+  /** The card the timer belongs to. */
+  cardId: CardId;
+  /** Unix ms when the timer was started. */
+  startedAt: number;
+  /**
+   * Unix ms of the last `last_seen_active` anchor for *this*
+   * timer. Refreshed on user input and on every alarm tick while
+   * the user is active. Phase 3 reads it to decide whether to
+   * prompt the user about a long gap.
+   */
+  lastSeenActive: number;
 }
 
 /** Convenience: an empty state for a brand-new install. */
@@ -166,6 +195,19 @@ export function isPersistedState(value: unknown): value is PersistedState {
   if (typeof v.settings !== "object" || v.settings === null) return false;
   const s = v.settings as Record<string, unknown>;
   if (typeof s.idleThresholdSeconds !== "number") return false;
+  // `runningTimer` is optional. When present, it must be a fully
+  // shaped RunningTimer (cardId, startedAt, lastSeenActive are
+  // numbers/strings). A malformed entry here would corrupt the
+  // time-tracking invariant, so we validate strictly.
+  if (v.runningTimer !== undefined) {
+    if (typeof v.runningTimer !== "object" || v.runningTimer === null) {
+      return false;
+    }
+    const rt = v.runningTimer as Record<string, unknown>;
+    if (typeof rt.cardId !== "string") return false;
+    if (typeof rt.startedAt !== "number") return false;
+    if (typeof rt.lastSeenActive !== "number") return false;
+  }
   return true;
 }
 

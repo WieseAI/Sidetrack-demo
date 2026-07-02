@@ -146,6 +146,11 @@ export interface StorageHandle {
   subscribe(listener: (state: PersistedState) => void): () => void;
   /** For tests: returns the current cached state without I/O. */
   peek(): PersistedState;
+  /** Like `peek`, but loads from storage if the cache is empty.
+   *  Used by imperative helpers (e.g. timer actions) that want
+   *  to inspect current state before issuing a mutate without
+   *  forcing every caller to have already called `loadState`. */
+  peekOrLoad(): Promise<PersistedState>;
 }
 
 export function createStorage(adapter: StorageAdapter): StorageHandle {
@@ -267,6 +272,11 @@ export function createStorage(adapter: StorageAdapter): StorageHandle {
     return cache;
   }
 
+  function peekOrLoad(): Promise<PersistedState> {
+    if (cache) return Promise.resolve(cache);
+    return read();
+  }
+
   return {
     loadState: read,
     mutate,
@@ -275,6 +285,7 @@ export function createStorage(adapter: StorageAdapter): StorageHandle {
     importState,
     subscribe,
     peek,
+    peekOrLoad,
   };
 }
 

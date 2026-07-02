@@ -331,7 +331,7 @@ describe("isPersistedState", () => {
 
   it("rejects a blob with the wrong schemaVersion", () => {
     const s = freshState() as unknown as Record<string, unknown>;
-    s.schemaVersion = 2;
+    s.schemaVersion = 99;
     expect(isPersistedState(s)).toBe(false);
   });
 
